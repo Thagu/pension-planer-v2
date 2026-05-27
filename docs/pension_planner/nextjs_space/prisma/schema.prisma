@@ -1,0 +1,59 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/pension_planner/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  profile       Profile?
+  scenarios     Scenario[]
+
+  @@map("users")
+}
+
+model Profile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique @map("user_id")
+  birthDate             String?  @map("birth_date")
+  gender                String?  @default("male")
+  employmentStartYear   Int?     @map("employment_start_year")
+  retirementAge         Int?     @default(65) @map("retirement_age")
+  currentSalaryBrutto   Float?   @default(0) @map("current_salary_brutto")
+  bvgCurrentCapital     Float?   @default(0) @map("bvg_current_capital")
+  pillar3aCurrentCapital Float?  @default(0) @map("pillar3a_current_capital")
+  freeAssets            Float?   @default(0) @map("free_assets")
+  bvgInterestRate       Float?   @map("bvg_interest_rate")
+  bvgConversionRate     Float?   @map("bvg_conversion_rate")
+  bvgContributionRates  Json?    @map("bvg_contribution_rates")
+  pillar3aInterestRate  Float?   @map("pillar3a_interest_rate")
+  freeAssetsInterestRate Float?  @map("free_assets_interest_rate")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Scenario {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  data      Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("scenarios")
+}
