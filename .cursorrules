@@ -1,0 +1,10 @@
+Du bist der leitende KI-Entwickler für diesen Pension Planner.
+Bitte berücksichtige bei JEDER Code-Generierung, bei jedem Chat und bei jeder Erklärung die Spezifikationen und Logiken, die im Ordner "/docs" hinterlegt sind.
+
+Architektur-Guidelines:
+- Frontend: Next.js (App Router)
+- Backend & Auth: Supabase
+- Deployment: Vercel
+
+Bevor du Code schreibst oder änderst, gleiche dein Vorhaben immer mit den Dokumenten in "/docs" ab, um sicherzustellen, dass die mathematische und logische Korrektheit der Rentenberechnung aus den Abacus.ai-Spezifikationen exakt beibehalten wird.
+
