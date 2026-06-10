@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,12 +30,14 @@ type Props = {
   accounts: Pillar3aAccountRow[];
   defaultReturnRate: number | null | undefined;
   formFieldName?: string;
+  onAccountsChange?: () => void;
 };
 
 export function Pillar3aAccountsEditor({
   accounts,
   defaultReturnRate,
   formFieldName = "pillar3aAccountsJson",
+  onAccountsChange,
 }: Props) {
   const defaultPct = decimalToPercentDisplay(defaultReturnRate) || "3";
 
@@ -50,6 +52,15 @@ export function Pillar3aAccountsEditor({
     (sum, a) => sum + a.annualContribution,
     0,
   );
+
+  useEffect(() => {
+    onAccountsChange?.();
+    if (typeof document === "undefined") return;
+    const hidden = document.querySelector<HTMLInputElement>(
+      `input[name="${CSS.escape(formFieldName)}"]`,
+    );
+    hidden?.dispatchEvent(new Event("input", { bubbles: true }));
+  }, [items, formFieldName, onAccountsChange]);
 
   const updateItem = (id: string, patch: Partial<Pillar3aAccountDraft>) => {
     setItems((prev) =>

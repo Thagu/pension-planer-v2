@@ -54,7 +54,7 @@ export interface FreeAssetsInput {
   workloadReductions?: WorkloadReduction[];
   /** Bruttojahreslohn bei 100 % Pensum (Basis für Sparquote-Einbusse) */
   referenceSalaryBrutto?: number;
-  /** Jährliche 3a-Einzahlung — mindert Ausgaben ab Erwerbsaufgabe */
+  /** Jährliche 3a-Einzahlung (Info; läuft separat, kein Abzug vom Netto-Leben) */
   annualPillar3aContribution?: number;
   /** Annual inflation (decimal); savings, salary base, expenses, 3a offset */
   inflationRate?: number;
@@ -178,7 +178,6 @@ export function calculateFreeAssetsPension(input: FreeAssetsInput): FreeAssetsRe
   const startYear = new Date().getFullYear();
   const annualSavings = Math.max(0, annualSavingsContribution);
   const annualExpenses = Math.max(0, annualRetirementExpenses);
-  const pillar3aExpenseOffset = Math.max(0, annualPillar3aContribution);
   const employmentEndAge = retirementAge;
 
   explanation.push({
@@ -217,10 +216,8 @@ export function calculateFreeAssetsPension(input: FreeAssetsInput): FreeAssetsRe
       value: `CHF ${Math.round(annualExpenses).toLocaleString("de-CH")}`,
       detail:
         inflationRate > 0
-          ? `Basis im ersten Pensionsjahr · jährliche Teuerung ${formatInflationRatePercent(inflationRate)}`
-          : pillar3aExpenseOffset > 0
-            ? `Ab Erwerbsaufgabe (${employmentEndAge} J.); abzgl. entfallender 3a-Einzahlung CHF ${Math.round(pillar3aExpenseOffset).toLocaleString("de-CH")}/J. wenn nicht mehr erwerbstätig`
-            : `Ab Erwerbsaufgabe (${employmentEndAge} J.); AHV ab ${ahvPensionStartAge} J., BVG ab ${bvgPensionStartAge} J. mindern den Kapitalbedarf`,
+          ? `Netto-Lebenshaltung im ersten Pensionsjahr · jährliche Teuerung ${formatInflationRatePercent(inflationRate)}`
+          : `Netto-Lebenshaltung ab Erwerbsaufgabe (${employmentEndAge} J.); AHV ab ${ahvPensionStartAge} J., BVG ab ${bvgPensionStartAge} J. mindern den Kapitalbedarf`,
     });
   }
 
@@ -303,15 +300,9 @@ export function calculateFreeAssetsPension(input: FreeAssetsInput): FreeAssetsRe
     }
 
     const yearsRetired = Math.max(0, age - retirementAge);
-    const yearExpenses = inflateAmount(annualExpenses, inflationRate, yearsRetired);
-    const yearPillar3aOffset = inflateAmount(
-      pillar3aExpenseOffset,
-      inflationRate,
-      i,
-    );
     const annualGrossExpenses = beforeRetirement
       ? 0
-      : Math.max(0, yearExpenses - yearPillar3aOffset);
+      : inflateAmount(annualExpenses, inflationRate, yearsRetired);
     const pensionAtAge = beforeRetirement
       ? 0
       : annualPensionIncomeAtAge(

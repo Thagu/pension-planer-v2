@@ -4,14 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Briefcase,
-  Building2,
-  FileText,
-  Landmark,
   Loader2,
   Save,
-  ShieldCheck,
-  Wallet,
 } from "lucide-react";
 
 import { saveScenario } from "@/app/scenarios/actions";
@@ -61,7 +55,7 @@ import {
 } from "@/components/scenarios/scenario-profile-ui";
 import { isBvgContributionBucketRelevant } from "@/lib/bvg/contribution-buckets";
 import { Button } from "@/components/ui/button";
-import { CollapsibleCard } from "@/components/ui/collapsible-card";
+import { ScenarioFormTabs } from "@/components/scenarios/scenario-form-tabs";
 import { StickyPreviewLayout } from "@/components/layout/sticky-preview-layout";
 import { CHF_STEP } from "@/components/shared/numeric-steps";
 import {
@@ -717,6 +711,12 @@ export function ScenarioForm({
     [result],
   );
 
+  const hasPillar3aChart =
+    result.pillar3a.accounts.some((a) => a.projection.length > 0) ||
+    Boolean(
+      partnerResult?.pillar3a.accounts.some((a) => a.projection.length > 0),
+    );
+
   const pillar3aEffectiveKey = result.pillar3a.accounts
     .map((a) => a.id)
     .join("|");
@@ -854,382 +854,79 @@ export function ScenarioForm({
               result={result}
               householdResult={householdResult}
               effectiveRetirementAge={effectiveRetirementAge}
-              planningHorizonAge={profile.planningHorizonAge ?? 90}
+              planningHorizonAge={profile.planningHorizonAge ?? 95}
             />
           }
           previewLabel="Vermögensentwicklung"
         >
-        <CollapsibleCard
-          title={initialScenario ? "Szenario bearbeiten" : "Neues Szenario"}
-          description="Szenarien übernehmen Ihre Stammdaten. Standardwerte müssen nicht erneut eingegeben werden — nur bei bewussten What-if-Abweichungen aktivieren Sie die optionalen Anpassungen pro Säule."
-          icon={<FileText className="h-5 w-5 text-primary" />}
-          defaultOpen
-        >
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="scenario-name">Name</Label>
-              <Input
-                id="scenario-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="z. B. Frühpensionierung mit 62"
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="scenario-desc">Beschreibung (optional)</Label>
-              <Input
-                id="scenario-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Kurze Beschreibung …"
-              />
-            </div>
-          </div>
-        </CollapsibleCard>
-
-        <InheritanceEventsCard
-          events={inheritanceDrafts}
-          onChange={setInheritanceDrafts}
-        />
-
-        {isCouple && partnerProfile ? (
-          <CollapsibleCard
-            title="Personen & Pensionierung"
-            description="Separate Erwerbsaufgabe und Arbeitspensum pro Person. Das Arbeitspensum reduziert Lohn, BVG-/3a-Beiträge und Sparquote proportional — Werte stammen aus den Stammdaten und sind hier überschreibbar."
-          >
-              <HouseholdSplitLayout
-                planningMode="couple"
-                left={
-                  <ScenarioPersonPanel
-                    person="primary"
-                    profile={profile}
-                    useRetirementOverride={useRetirementAgeOverride}
-                    onUseRetirementOverride={setUseRetirementAgeOverride}
-                    retirementAgeOverride={retirementAgeOverride}
-                    onRetirementAgeOverride={setRetirementAgeOverride}
-                    useWorkloadOverride={useWorkloadOverride}
-                    onUseWorkloadOverride={setUseWorkloadOverride}
-                    workloadReductions={workloadReductions}
-                    onWorkloadReductions={setWorkloadReductions}
-                  />
-                }
-                right={
-                  <ScenarioPersonPanel
-                    person="partner"
-                    profile={partnerProfile}
-                    useRetirementOverride={usePartnerRetirementOverride}
-                    onUseRetirementOverride={setUsePartnerRetirementOverride}
-                    retirementAgeOverride={partnerRetirementAgeOverride}
-                    onRetirementAgeOverride={setPartnerRetirementAgeOverride}
-                    useWorkloadOverride={usePartnerWorkloadOverride}
-                    onUseWorkloadOverride={setUsePartnerWorkloadOverride}
-                    workloadReductions={partnerWorkloadReductions}
-                    onWorkloadReductions={setPartnerWorkloadReductions}
-                  />
-                }
-              />
-          </CollapsibleCard>
-        ) : null}
-
-        {isCouple && partnerProfile ? (
-          <CollapsibleCard
-            title="AHV (1. Säule)"
-            description="AHV-Annahmen pro Person. Erwerbsaufgabe wird unter «Personen & Pensionierung» gesteuert."
-            icon={<ShieldCheck className="h-5 w-5 text-primary" />}
-          >
-              <HouseholdSplitLayout
-                planningMode="couple"
-                left={
-                  <ScenarioAhvSection
-                    embedded
-                    person="primary"
-                    profile={profile}
-                    ahvReferenceAge={ahvReferenceAge}
-                    ahvEarliestAge={ahvEarliestAge}
-                    state={primaryAhvState}
-                    onChange={updatePrimaryAhv}
-                    hideRetirementOverride
-                  />
-                }
-                right={
-                  <ScenarioAhvSection
-                    embedded
-                    person="partner"
-                    profile={partnerProfile}
-                    ahvReferenceAge={partnerAhvReferenceAge}
-                    ahvEarliestAge={partnerAhvEarliestAge}
-                    state={partnerAhvState}
-                    onChange={(patch) =>
-                      setPartnerAhvState((prev) => ({ ...prev, ...patch }))
-                    }
-                    hideRetirementOverride
-                  />
-                }
-              />
-          </CollapsibleCard>
-        ) : (
-          <ScenarioAhvSection
-            person="primary"
-            profile={profile}
-            ahvReferenceAge={ahvReferenceAge}
-            ahvEarliestAge={ahvEarliestAge}
-            state={primaryAhvState}
-            onChange={updatePrimaryAhv}
-          />
-        )}
-
-        {!isCouple ? (
-        <CollapsibleCard
-          title="Arbeitspensum"
-          description="Teilpensionierung mit bis zu zwei Reduktionsstufen. BVG und 3a proportional zum Pensum; Sparquote sinkt um die volle Brutto-Einbusse."
-          icon={<Briefcase className="h-5 w-5 text-primary" />}
-        >
-            <ProfileInheritanceNote>
-              Standardmässig gelten die Arbeitspensum-Reduktionen aus den
-              Stammdaten.
-            </ProfileInheritanceNote>
-
-            <ProfileDefaultsPanel>
-              <ProfileDefaultItem
-                label="Profil-Arbeitspensum"
-                value={formatWorkloadReductions(profile.workloadReductions ?? [])}
-              />
-            </ProfileDefaultsPanel>
-
-            <ScenarioAdjustmentsHeading />
-
-            <ScenarioOverrideRow
-              id="use-workload-override"
-              checked={useWorkloadOverride}
-              onCheckedChange={setUseWorkloadOverride}
-              label="Arbeitspensum im Szenario anpassen"
-              profileValue={formatWorkloadReductions(profile.workloadReductions ?? [])}
-            >
-              <WorkloadReductionFields
-                idPrefix="scenario"
-                namePrefix="scenarioWorkloadReduction"
-                reductions={workloadReductions}
-                onChange={setWorkloadReductions}
-              />
-            </ScenarioOverrideRow>
-        </CollapsibleCard>
-        ) : null}
-
-        {isCouple && partnerProfile && partnerResult && partnerProfileDefaults ? (
-          <CollapsibleCard
-            title="BVG (2. Säule)"
-            description="Pro Person eigene BVG-Annahmen und Szenario-Entscheide (Kapitalbezug, UWS, Gutschriften)."
-            icon={<Building2 className="h-5 w-5 text-primary" />}
-          >
-              <HouseholdSplitLayout
-                planningMode="couple"
-                left={
-                  <ScenarioBvgSection
-                    embedded
-                    person="primary"
-                    profile={profile}
-                    result={result.bvg}
-                    profileDefaults={profileDefaults}
-                    profileBvgPensionStart={profileBvgPensionStart}
-                    currentAge={currentAge}
-                    state={primaryBvgState}
-                    onChange={updatePrimaryBvg}
-                  />
-                }
-                right={
-                  <ScenarioBvgSection
-                    embedded
-                    person="partner"
-                    profile={partnerProfile}
-                    result={partnerResult.bvg}
-                    profileDefaults={partnerProfileDefaults}
-                    profileBvgPensionStart={partnerBvgPensionStart}
-                    currentAge={partnerCurrentAge}
-                    state={partnerBvgState}
-                    onChange={(patch) =>
-                      setPartnerBvgState((prev) => ({ ...prev, ...patch }))
-                    }
-                  />
-                }
-              />
-          </CollapsibleCard>
-        ) : (
-          <ScenarioBvgSection
-            person="primary"
-            profile={profile}
-            result={result.bvg}
-            profileDefaults={profileDefaults}
-            profileBvgPensionStart={profileBvgPensionStart}
-            currentAge={currentAge}
-            state={primaryBvgState}
-            onChange={updatePrimaryBvg}
-          />
-        )}
-
-        {isCouple && partnerProfile && partnerResult ? (
-          <CollapsibleCard
-            title="Säule 3a · Bezugsplanung"
-            description="Gestaffelter Bezug pro Person und Konto. Auto-Split-Einstellungen gelten für beide Personen (Schwellenwert aus Stammdaten)."
-            icon={<Landmark className="h-5 w-5 text-primary" />}
-          >
-              <HouseholdSplitLayout
-                planningMode="couple"
-                left={
-                  <ScenarioPillar3aSection
-                    embedded
-                    person="primary"
-                    profile={profile}
-                    result={result.pillar3a}
-                    overrideState={pillar3aOverrideState}
-                    onChange={updatePillar3aOverride}
-                  />
-                }
-                right={
-                  <ScenarioPillar3aSection
-                    embedded
-                    person="partner"
-                    profile={partnerProfile}
-                    result={partnerResult.pillar3a}
-                    overrideState={partnerPillar3aOverrideState}
-                    onChange={updatePartnerPillar3aOverride}
-                  />
-                }
-              />
-          </CollapsibleCard>
-        ) : (
-          <ScenarioPillar3aSection
-            profile={profile}
-            result={result.pillar3a}
-            overrideState={pillar3aOverrideState}
-            onChange={updatePillar3aOverride}
-          />
-        )}
-
-        {(result.pillar3a.accounts.some((a) => a.projection.length > 0) ||
-          partnerResult?.pillar3a.accounts.some((a) => a.projection.length > 0)) ? (
-          <CollapsibleCard
-            title="3a – Kapitalentwicklung"
-            description={
-              isCouple
-                ? "Beide Personen mit Gesamtsumme und Kapitalbezügen bis zum Horizont der jüngeren Person"
-                : "Projektion pro Konto bis zur Pensionierung"
-            }
-          >
-            <div className="rounded-lg border bg-muted/20 p-4">
-              {isCouple && partnerResult && household ? (
-                <HouseholdPillar3aChart
-                  primary={result.pillar3a}
-                  partner={partnerResult.pillar3a}
-                  primaryBirthDate={profile.birthDate}
-                  partnerBirthDate={partnerProfile?.birthDate}
-                  primaryHorizonAge={profile.planningHorizonAge ?? 90}
-                  partnerHorizonAge={partnerProfile?.planningHorizonAge ?? 90}
-                />
-              ) : (
-                <Pillar3aProjectionChart result={result.pillar3a} />
-              )}
-            </div>
-          </CollapsibleCard>
-        ) : null}
-
-        <CapitalWithdrawalOptimizerCard
+        <ScenarioFormTabs
+          initialScenario={initialScenario ?? null}
+          name={name}
+          setName={setName}
+          description={description}
+          setDescription={setDescription}
+          inheritanceDrafts={inheritanceDrafts}
+          setInheritanceDrafts={setInheritanceDrafts}
+          isCouple={isCouple}
+          partnerProfile={partnerProfile}
           profile={profile}
-          overrides={overrides}
-          onApply={handleApplyOptimization}
+          household={household}
+          result={result}
+          partnerResult={partnerResult}
+          householdResult={householdResult}
+          baseResult={baseResult}
+          effectiveRetirementAge={effectiveRetirementAge}
+          hasPillar3aChart={hasPillar3aChart}
+          pensionIncomeSourceCount={pensionIncomeSourceCount}
+          profileFreeAssetsReturnPercent={profileFreeAssetsReturnPercent}
+          profileDefaults={profileDefaults}
+          partnerProfileDefaults={partnerProfileDefaults}
+          profileBvgPensionStart={profileBvgPensionStart}
+          partnerBvgPensionStart={partnerBvgPensionStart}
+          currentAge={currentAge}
+          partnerCurrentAge={partnerCurrentAge}
+          ahvReferenceAge={ahvReferenceAge}
+          ahvEarliestAge={ahvEarliestAge}
+          partnerAhvReferenceAge={partnerAhvReferenceAge}
+          partnerAhvEarliestAge={partnerAhvEarliestAge}
+          primaryAhvState={primaryAhvState}
+          partnerAhvState={partnerAhvState}
+          updatePrimaryAhv={updatePrimaryAhv}
+          setPartnerAhvState={setPartnerAhvState}
+          primaryBvgState={primaryBvgState}
+          partnerBvgState={partnerBvgState}
+          updatePrimaryBvg={updatePrimaryBvg}
+          setPartnerBvgState={setPartnerBvgState}
+          pillar3aOverrideState={pillar3aOverrideState}
+          partnerPillar3aOverrideState={partnerPillar3aOverrideState}
+          updatePillar3aOverride={updatePillar3aOverride}
+          updatePartnerPillar3aOverride={updatePartnerPillar3aOverride}
+          useRetirementAgeOverride={useRetirementAgeOverride}
+          setUseRetirementAgeOverride={setUseRetirementAgeOverride}
+          retirementAgeOverride={retirementAgeOverride}
+          setRetirementAgeOverride={setRetirementAgeOverride}
+          usePartnerRetirementOverride={usePartnerRetirementOverride}
+          setUsePartnerRetirementOverride={setUsePartnerRetirementOverride}
+          partnerRetirementAgeOverride={partnerRetirementAgeOverride}
+          setPartnerRetirementAgeOverride={setPartnerRetirementAgeOverride}
+          useWorkloadOverride={useWorkloadOverride}
+          setUseWorkloadOverride={setUseWorkloadOverride}
+          workloadReductions={workloadReductions}
+          setWorkloadReductions={setWorkloadReductions}
+          usePartnerWorkloadOverride={usePartnerWorkloadOverride}
+          setUsePartnerWorkloadOverride={setUsePartnerWorkloadOverride}
+          partnerWorkloadReductions={partnerWorkloadReductions}
+          setPartnerWorkloadReductions={setPartnerWorkloadReductions}
+          useFreeAssetsValueOverride={useFreeAssetsValueOverride}
+          setUseFreeAssetsValueOverride={setUseFreeAssetsValueOverride}
+          freeAssetsValueOverride={freeAssetsValueOverride}
+          handleFreeAssetsChange={handleFreeAssetsChange}
+          useFreeAssetsReturnOverride={useFreeAssetsReturnOverride}
+          setUseFreeAssetsReturnOverride={setUseFreeAssetsReturnOverride}
+          freeAssetsReturnOverride={freeAssetsReturnOverride}
+          setFreeAssetsReturnOverride={setFreeAssetsReturnOverride}
+          PercentInput={PercentInput}
         />
-
-        <CollapsibleCard
-          title="Freies Vermögen"
-          description="Verzinsung bis zur Pensionierung; ab Pensionierung werden Ausgaben abzgl. AHV/BVG-Rente vom Vermögen entnommen. Kapitalbezüge (BVG, 3a) fliessen als Zuflüsse ins Vermögen."
-          icon={<Wallet className="h-5 w-5 text-primary" />}
-        >
-            <ProfileInheritanceNote>
-              Startvermögen und Rendite werden aus dem Profil übernommen. Nur bei
-              Abweichungen die entsprechende Checkbox aktivieren.
-            </ProfileInheritanceNote>
-
-            <ProfileDefaultsPanel>
-              <ProfileDefaultItem
-                label="Freies Vermögen"
-                value={formatCHF(profile.freeAssets)}
-              />
-              <ProfileDefaultItem
-                label="Erwartete Rendite"
-                value={`${profileFreeAssetsReturnPercent} %`}
-              />
-            </ProfileDefaultsPanel>
-
-            <ScenarioAdjustmentsHeading />
-
-            <ScenarioOverrideRow
-              id="use-free-assets-value"
-              checked={useFreeAssetsValueOverride}
-              onCheckedChange={setUseFreeAssetsValueOverride}
-              label="Vermögensbetrag vom Profil abweichen"
-              profileValue={formatCHF(profile.freeAssets)}
-            >
-              <ChfStepperInput
-                className="w-52"
-                value={freeAssetsValueOverride}
-                onChange={handleFreeAssetsChange}
-                step={CHF_STEP.wealth}
-                ariaLabel="Freies Vermögen"
-              />
-            </ScenarioOverrideRow>
-
-            <ScenarioOverrideRow
-              id="use-free-assets-return"
-              checked={useFreeAssetsReturnOverride}
-              onCheckedChange={setUseFreeAssetsReturnOverride}
-              label="Rendite vom Profil abweichen"
-              profileValue={`${profileFreeAssetsReturnPercent} %`}
-            >
-              <PercentInput
-                value={freeAssetsReturnOverride}
-                onChange={setFreeAssetsReturnOverride}
-              />
-            </ScenarioOverrideRow>
-        </CollapsibleCard>
-
-        {pensionIncomeSourceCount > 1 ? (
-        <CollapsibleCard
-          title="Einkommensverteilung"
-          description="Anteile der monatlichen Gesamtrente nach Säule"
-          className="border-primary/15"
-        >
-            <PensionIncomeChart result={result} />
-        </CollapsibleCard>
-        ) : null}
-
-        <CollapsibleCard
-          title="Einkommen im Alter"
-          description="Jährliches Einkommen aus AHV, BVG und freiem Vermögen ab dem ersten relevanten Jahr — pro Person und als Total"
-          className="border-primary/15"
-        >
-            <VorsorgeIncomeTimelineChart
-              primary={result}
-              partner={partnerResult}
-              primaryBirthDate={profile.birthDate}
-              partnerBirthDate={partnerProfile?.birthDate}
-              planningHorizonAge={profile.planningHorizonAge ?? 90}
-              partnerPlanningHorizonAge={
-                partnerProfile?.planningHorizonAge ?? undefined
-              }
-              combinedProjection={householdResult?.combinedProjection}
-              householdRetirementAge={householdResult?.householdRetirementAge}
-            />
-        </CollapsibleCard>
-
-        {householdResult ? (
-          <HouseholdPensionSummary result={householdResult} />
-        ) : (
-          <PensionSummary
-            result={result}
-            baseMonthlyTotal={baseResult.summary.monthlyTotalAtHorizon}
-            retirementAge={effectiveRetirementAge}
-          />
-        )}
         </StickyPreviewLayout>
 
         <div className="flex justify-end gap-3">

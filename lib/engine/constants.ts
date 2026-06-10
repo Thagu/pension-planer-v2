@@ -116,3 +116,7 @@ export const DEFAULT_ASSUMPTIONS = {
   returnRate3a: 0.03,
   returnRateFreeAssets: 0.04,
 };
+
+/** Geschätzter Netto-Anteil vom Bruttolohn (Mischphase, v1 ohne Lohnsteuer-Rechner) */
+export const SALARY_NET_ESTIMATE_FACTOR = 0.78;
+export const NET_SALARY_ESTIMATE_FACTOR = SALARY_NET_ESTIMATE_FACTOR;

@@ -362,7 +362,7 @@ export function calculatePillar3a(input: Pillar3aInput): Pillar3aResult {
     label: "Gesetzlicher 3a-Bezugsrahmen",
     value: `${earliestWithdrawalAge} – ${latestWithdrawalAge} Jahre`,
     detail:
-      "Frühestens 5 J. vor AHV-Referenz bzw. ab Erwerbsaufgabe · gestaffelt bis AHV-Bezug",
+      "Frühestens 5 J. vor AHV-Referenzalter · gestaffelt bis AHV-Bezug (unabhängig von früher Erwerbsaufgabe)",
   });
 
   if (workloadReductions.length > 0) {

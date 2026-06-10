@@ -153,7 +153,7 @@ export function partnerDataToProfileForScenario(
       shared.pillar3aDefaultReturnRate != null
         ? normalizeDbRate(shared.pillar3aDefaultReturnRate, 0.03)
         : null,
-    planningHorizonAge: shared.planningHorizonAge ?? 90,
+    planningHorizonAge: shared.planningHorizonAge ?? 95,
     annualRetirementExpenses: 0,
     workloadReductions: normalizeWorkloadReductions(data.workload_reductions),
     taxSettings: shared.taxSettings,

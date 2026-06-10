@@ -191,7 +191,7 @@ export function calculateFinancialIndependence(
   }
 
   const currentAge = calculateAge(profile.birthDate);
-  const planningHorizonAge = profile.planningHorizonAge ?? 90;
+  const planningHorizonAge = profile.planningHorizonAge ?? 95;
   const profileRetirementAge = profile.retirementAge ?? 65;
 
   if (planningHorizonAge <= currentAge) {
@@ -343,6 +343,19 @@ function buildHouseholdTimeline(
   };
 }
 
+function householdProjectionEndYear(
+  household: HouseholdProfileForScenario,
+): number {
+  const horizon = household.primary.planningHorizonAge ?? 95;
+  const primaryEnd =
+    new Date(household.primary.birthDate).getFullYear() + horizon;
+  if (!household.partner?.birthDate) return primaryEnd;
+  const partnerHorizon = household.partner.planningHorizonAge ?? horizon;
+  const partnerEnd =
+    new Date(household.partner.birthDate).getFullYear() + partnerHorizon;
+  return Math.max(primaryEnd, partnerEnd);
+}
+
 function evaluateHouseholdRetirement(
   household: HouseholdProfileForScenario,
   primaryEmploymentEndAge: number,
@@ -375,10 +388,12 @@ function evaluateHouseholdRetirement(
     };
   }
 
+  const projectionEndYear = householdProjectionEndYear(household);
+
   const retirementYears = projection.filter(
     (row) =>
       row.primaryAge >= primaryEmploymentEndAge &&
-      row.primaryAge <= planningHorizonAge,
+      row.year <= projectionEndYear,
   );
 
   if (retirementYears.length === 0) {
@@ -395,9 +410,7 @@ function evaluateHouseholdRetirement(
   }
 
   const minCapital = Math.min(...retirementYears.map((row) => row.capitalEnd));
-  const horizonRow =
-    retirementYears.find((row) => row.primaryAge === planningHorizonAge) ??
-    retirementYears[retirementYears.length - 1];
+  const horizonRow = retirementYears[retirementYears.length - 1];
   const sustainable = retirementYears.every((row) => row.capitalEnd > 0);
   const monthlyIncomeAtHorizon =
     householdResult.primary.summary.monthlyTotalAtHorizon +
@@ -425,7 +438,7 @@ export function calculateHouseholdFinancialIndependence(
   }
 
   const currentAge = calculateAge(household.primary.birthDate);
-  const planningHorizonAge = household.primary.planningHorizonAge ?? 90;
+  const planningHorizonAge = household.primary.planningHorizonAge ?? 95;
   const profileRetirementAge = household.primary.retirementAge ?? 65;
 
   if (planningHorizonAge <= currentAge) {
@@ -491,10 +504,10 @@ export function calculateHouseholdFinancialIndependence(
     bestAge < profileRetirementAge ? profileRetirementAge - bestAge : null;
 
   const explanation: string[] = [
-    `Erwerbsaufgabe Person 1 ab Alter ${bestAge}: Haushaltsausgaben (CHF ${formatChf(household.primary.annualRetirementExpenses ?? 0)}/J.) werden durch kombinierte Renten und Vermögen gedeckt.`,
-    `Projektion bis Alter ${planningHorizonAge}: tiefster Haushaltsvermögensstand CHF ${formatChf(bestMetrics.minCapital)}, Endvermögen CHF ${formatChf(bestMetrics.endCapital)}.`,
+    `Erwerbsaufgabe Person 1 ab Alter ${bestAge}: Netto-Lebenshaltung (CHF ${formatChf(household.primary.annualRetirementExpenses ?? 0)}/J., heutige Kaufkraft) startet ab dem ersten Haushalts-Ruhestand mit Teuerung. In der Mischphase mindert der geschätzte Netto-Lohn des Partners die Entnahme; Steuern und Vorsorge laufen separat.`,
+    `Projektion bis Alter ${planningHorizonAge}: tiefster Haushaltsvermögensstand CHF ${formatChf(bestMetrics.minCapital)} (muss > 0 bleiben — ein hoher Tiefstand bedeutet grossen Puffer, nicht fehlende FI). Endvermögen CHF ${formatChf(bestMetrics.endCapital)}.`,
     `Monatliches Haushaltseinkommen am Planungshorizont: ca. ${formatChf(bestMetrics.monthlyIncomeAtHorizon)}/Mt.`,
-    "Annahmen: separate AHV/BVG/3a pro Person, Haushaltsausgaben ab späterer Pensionierung, 100 % BVG-Verrentung.",
+    "Annahmen: separate AHV/BVG/3a pro Person, 100 % BVG-Verrentung, Standard-3a-Bezugsplan. Kleine Renditeänderungen können bei aktivem 3a-Auto-Split zusätzliche Konten auslösen.",
   ];
 
   if (bestMetrics.householdResult.ahvCouplePlafonierungApplied) {

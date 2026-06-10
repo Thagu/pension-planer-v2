@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Lightbulb, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import {
   formatCHF,
   optimizeCapitalWithdrawal,
@@ -49,13 +48,7 @@ export function CapitalWithdrawalOptimizerCard({
   };
 
   return (
-    <CollapsibleCard
-      title="Optimiervorschlag"
-      description="Analysiert Kapitalbezug (BVG), Rentenanteil und 3a-Bezugszeitpunkte auf Steuerersparnis."
-      icon={<Lightbulb className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
-      className="border-dashed"
-    >
-      <div className="space-y-4">
+    <div className="space-y-4">
         <Button
           type="button"
           variant="secondary"
@@ -126,7 +119,6 @@ export function CapitalWithdrawalOptimizerCard({
           Schätzung auf Basis der Szenario-Eingaben und Steuer-Referenz aus den
           Stammdaten. Nach Anpassungen erneut berechnen.
         </p>
-      </div>
-    </CollapsibleCard>
+    </div>
   );
 }

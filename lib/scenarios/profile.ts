@@ -31,6 +31,7 @@ export type ProfileRow = {
   annual_savings_to_free_assets: number | null;
   planning_horizon_age: number | null;
   annual_retirement_expenses: number | null;
+  annual_survivor_expenses?: number | null;
   pillar3a_auto_split_enabled: boolean | null;
   pillar3a_auto_split_threshold: number | null;
   pillar3a_auto_split_contribution_mode: string | null;
@@ -144,8 +145,9 @@ export function profileRowToScenarioInput(
             row.pillar3a_auto_split_name_prefix?.trim() || "3a-Konto",
         }
       : undefined,
-    planningHorizonAge: row.planning_horizon_age ?? 90,
+    planningHorizonAge: row.planning_horizon_age ?? 95,
     annualRetirementExpenses: Number(row.annual_retirement_expenses ?? 0),
+    annualSurvivorExpenses: Number(row.annual_survivor_expenses ?? 0),
     workloadReductions: normalizeWorkloadReductions(
       parseWorkloadReductionsFromDb(row.workload_reductions),
     ),

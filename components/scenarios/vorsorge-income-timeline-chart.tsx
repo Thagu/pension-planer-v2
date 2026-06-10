@@ -258,7 +258,7 @@ type Props = {
 export function VorsorgeIncomeTimelineChart({
   primary,
   primaryBirthDate,
-  planningHorizonAge = 90,
+  planningHorizonAge = 95,
   partner = null,
   partnerBirthDate = null,
   partnerPlanningHorizonAge,

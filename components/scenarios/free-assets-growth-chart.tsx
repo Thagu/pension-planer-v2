@@ -7,6 +7,10 @@ import {
   useChartSeriesVisibility,
 } from "@/components/charts/chart-legend";
 import {
+  cashflowFromFreeAssetsRow,
+  HouseholdCashflowBreakdown,
+} from "@/components/charts/household-cashflow-tooltip";
+import {
   ChartFloatingTooltip,
   RIGHT_AXIS_STROKE_DASH,
   WEALTH_LINE_COLOR,
@@ -100,9 +104,19 @@ function TooltipRow({
   );
 }
 
-function YearTooltip({ point }: { point: FreeAssetsYearProjection }) {
+function YearTooltip({
+  point,
+  retirementAge,
+}: {
+  point: FreeAssetsYearProjection;
+  retirementAge: number;
+}) {
   const capitalDelta = point.capitalEnd - point.capitalStart;
   const annualNet = point.annualTotalIncome - point.annualTotalExpenses;
+  const cashflow = cashflowFromFreeAssetsRow(
+    point,
+    point.age >= retirementAge,
+  );
   const hasIncomeDetails =
     point.savingsContribution > 0 ||
     point.interest > 0 ||
@@ -183,73 +197,18 @@ function YearTooltip({ point }: { point: FreeAssetsYearProjection }) {
           </>
         ) : null}
 
-        {hasExpenseDetails || point.annualTotalExpenses > 0 ? (
+        {cashflow ? (
+          <HouseholdCashflowBreakdown cashflow={cashflow} showPhaseBadge={false} />
+        ) : hasExpenseDetails || point.annualTotalExpenses > 0 ? (
           <>
             <p className="border-t border-border/60 pt-2 text-[10px] font-medium uppercase tracking-wide text-foreground/70">
               Ausgaben (Jahr)
             </p>
-            {point.annualGrossExpenses > 0 ? (
-              <TooltipRow
-                label="Lebenshaltung"
-                value={`−${formatCHF(point.annualGrossExpenses)}`}
-              />
-            ) : null}
-            {point.annualTotalTax > 0 ? (
-              <>
-                <TooltipRow
-                  label="Steuern (total)"
-                  value={`−${formatCHF(point.annualTotalTax)}`}
-                />
-                {point.annualFederalTax > 0 ? (
-                  <TooltipRow
-                    label="· Bundessteuer"
-                    value={`−${formatCHF(point.annualFederalTax)}`}
-                    tone="muted"
-                  />
-                ) : null}
-                {point.annualCantonalTax > 0 ? (
-                  <TooltipRow
-                    label="· Kantonssteuer"
-                    value={`−${formatCHF(point.annualCantonalTax)}`}
-                    tone="muted"
-                  />
-                ) : null}
-                {point.annualMunicipalTax > 0 ? (
-                  <TooltipRow
-                    label="· Gemeindesteuer"
-                    value={`−${formatCHF(point.annualMunicipalTax)}`}
-                    tone="muted"
-                  />
-                ) : null}
-              </>
-            ) : null}
             <TooltipRow
               label="Total Ausgaben"
               value={`−${formatCHF(point.annualTotalExpenses)}`}
               color={EXPENSE_LINE_COLOR}
             />
-          </>
-        ) : null}
-
-        {point.annualGrossExpenses > 0 ? (
-          <>
-            <p className="border-t border-border/60 pt-2 text-[10px] font-medium uppercase tracking-wide text-foreground/70">
-              Deckung Lebenshaltung
-            </p>
-            {point.annualPensionOffset > 0 ? (
-              <TooltipRow
-                label="Aus Renten"
-                value={formatCHF(point.annualPensionOffset)}
-                tone="positive"
-              />
-            ) : null}
-            {point.annualWithdrawal > 0 ? (
-              <TooltipRow
-                label="Aus Vermögen"
-                value={`−${formatCHF(point.annualWithdrawal)}`}
-                color="hsl(var(--chart-3))"
-              />
-            ) : null}
           </>
         ) : null}
 
@@ -687,7 +646,7 @@ function FreeAssetsGrowthChartInner({
           tooltipWidth={240}
           className="min-w-[15rem] max-w-[18rem]"
         >
-          <YearTooltip point={hovered} />
+          <YearTooltip point={hovered} retirementAge={retirementAge} />
         </ChartFloatingTooltip>
       )}
 

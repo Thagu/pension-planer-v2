@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ type Props = {
   threshold: number | null | undefined;
   contributionMode: "max" | "last" | null | undefined;
   namePrefix: string | null | undefined;
+  onSettingsChange?: () => void;
 };
 
 export function Pillar3aAutoSplitSettings({
@@ -21,6 +22,7 @@ export function Pillar3aAutoSplitSettings({
   threshold: initialThreshold,
   contributionMode: initialMode,
   namePrefix: initialPrefix,
+  onSettingsChange,
 }: Props) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [threshold, setThreshold] = useState(() =>
@@ -32,6 +34,16 @@ export function Pillar3aAutoSplitSettings({
     initialMode === "last" ? "last" : "max",
   );
   const [namePrefix, setNamePrefix] = useState(initialPrefix ?? "3a-Konto");
+
+  useEffect(() => {
+    onSettingsChange?.();
+    if (typeof document === "undefined") return;
+    document
+      .querySelector<HTMLInputElement>(
+        'input[name="pillar3aAutoSplitEnabled"]',
+      )
+      ?.dispatchEvent(new Event("input", { bubbles: true }));
+  }, [enabled, threshold, mode, namePrefix, onSettingsChange]);
 
   return (
     <div className="md:col-span-2 space-y-4 rounded-lg border border-border/60 bg-muted/10 p-4">

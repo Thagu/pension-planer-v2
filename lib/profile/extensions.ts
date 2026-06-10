@@ -13,6 +13,8 @@ export type ProfileExtensions = {
   annual_savings_to_free_assets: number;
   planning_horizon_age: number | null;
   annual_retirement_expenses: number;
+  /** Netto-Lebenshaltung wenn nur ein Partner lebt (Paarmodus) */
+  annual_survivor_expenses: number;
   pillar3a_auto_split_enabled: boolean;
   pillar3a_auto_split_threshold: number | null;
   pillar3a_auto_split_contribution_mode: "max" | "last";
@@ -46,6 +48,7 @@ export function extensionsFromUserMetadata(
         ? Number(ext.planning_horizon_age)
         : null,
     annual_retirement_expenses: Number(ext.annual_retirement_expenses ?? 0),
+    annual_survivor_expenses: Number(ext.annual_survivor_expenses ?? 0),
     pillar3a_auto_split_enabled: Boolean(ext.pillar3a_auto_split_enabled),
     pillar3a_auto_split_threshold:
       ext.pillar3a_auto_split_threshold != null
@@ -86,6 +89,7 @@ type MergeableProfile = {
   annual_savings_to_free_assets?: number | null;
   planning_horizon_age?: number | null;
   annual_retirement_expenses?: number | null;
+  annual_survivor_expenses?: number | null;
   pillar3a_auto_split_enabled?: boolean | null;
   pillar3a_auto_split_threshold?: number | null;
   pillar3a_auto_split_contribution_mode?: string | null;
@@ -119,6 +123,8 @@ export function mergeProfileWithExtensions<T extends MergeableProfile>(
       profile.planning_horizon_age ?? ext.planning_horizon_age,
     annual_retirement_expenses:
       profile.annual_retirement_expenses ?? ext.annual_retirement_expenses,
+    annual_survivor_expenses:
+      profile.annual_survivor_expenses ?? ext.annual_survivor_expenses,
     pillar3a_auto_split_enabled:
       profile.pillar3a_auto_split_enabled ?? ext.pillar3a_auto_split_enabled,
     pillar3a_auto_split_threshold:
@@ -142,7 +148,7 @@ export function mergeProfileWithExtensions<T extends MergeableProfile>(
 }
 
 export function isMissingProfileColumnError(message: string): boolean {
-  return /bvg_coordinated_salary_override|annual_savings_to_free_assets|planning_horizon_age|annual_retirement_expenses|pillar3a_auto_split|marital_status|tax_canton|tax_postal_code|tax_municipality|workload_reductions|inflation_rate|column.*does not exist/i.test(
+  return /bvg_coordinated_salary_override|annual_savings_to_free_assets|planning_horizon_age|annual_retirement_expenses|annual_survivor_expenses|pillar3a_auto_split|marital_status|tax_canton|tax_postal_code|tax_municipality|workload_reductions|inflation_rate|column.*does not exist/i.test(
     message,
   );
 }
@@ -163,9 +169,12 @@ export function buildExtensionsPayload(formData: FormData): ProfileExtensions {
       (formData.get("annualSavingsToFreeAssets") as string) ?? "",
     ),
     planning_horizon_age:
-      toAgeOrNull(formData.get("planningHorizonAge")) ?? 90,
+      toAgeOrNull(formData.get("planningHorizonAge")) ?? 95,
     annual_retirement_expenses: parseSwissNumber(
       (formData.get("annualRetirementExpenses") as string) ?? "",
+    ),
+    annual_survivor_expenses: parseSwissNumber(
+      (formData.get("annualSurvivorExpenses") as string) ?? "",
     ),
     pillar3a_auto_split_enabled: formData.get("pillar3aAutoSplitEnabled") === "on",
     pillar3a_auto_split_threshold: thresholdRaw > 0 ? thresholdRaw : null,

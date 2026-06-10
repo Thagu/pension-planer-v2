@@ -189,11 +189,17 @@ export function defaultWithdrawalSchedule(
       return schedule;
     }
 
-    unsetIds.forEach((id, index) => {
+    let manualIndex = 0;
+    unsetIds.forEach((id) => {
+      if (id.startsWith("auto-split-")) {
+        schedule[id] = maxOffset;
+        return;
+      }
       schedule[id] =
-        availableOffsets[index] ??
+        availableOffsets[manualIndex] ??
         availableOffsets[availableOffsets.length - 1] ??
         maxOffset;
+      manualIndex++;
     });
     return schedule;
   }

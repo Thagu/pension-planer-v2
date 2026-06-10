@@ -96,6 +96,19 @@ export {
 } from "./household-orchestrator";
 
 export {
+  buildHouseholdCashflowContext,
+  computeHouseholdYearCashflow,
+  computeInflatedNetLiving,
+  computeNetLivingExpenses,
+  estimateNetEmploymentIncome,
+  yearsSinceHouseholdExpenseStart,
+  cashflowPhaseLabel,
+  type HouseholdYearCashflow,
+  type HouseholdCashflowPhase,
+  type HouseholdCashflowContext,
+} from "./household-cashflow";
+
+export {
   applyCoupleAhvPlafonierung,
   getCoupleAhvCapYearly,
   AHV_COUPLE_MAX_FACTOR,
@@ -124,6 +137,8 @@ export {
   BVG_GUIDANCE_MAX_CAPITAL_WITHDRAWAL,
   BVG_MAX_CAPITAL_WITHDRAWAL_TRANCHES,
   DEFAULT_ASSUMPTIONS,
+  NET_SALARY_ESTIMATE_FACTOR,
+  SALARY_NET_ESTIMATE_FACTOR,
   PILLAR_3A_MAX_CONTRIBUTION,
   PILLAR_3A_MAX_ACCOUNTS,
   PILLAR_3A_MIN_WITHDRAWAL_OFFSET,

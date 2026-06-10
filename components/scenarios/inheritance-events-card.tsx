@@ -3,7 +3,6 @@
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { Label } from "@/components/ui/label";
 import { CHF_STEP, NUM_STEP } from "@/components/shared/numeric-steps";
 import {
@@ -68,11 +67,7 @@ export function InheritanceEventsCard({
   };
 
   return (
-    <CollapsibleCard
-      title="Erbschaft / Schenkung"
-      description="Einmaliger Vermögenszufluss ins freie Haushaltsvermögen. Alter bezieht sich auf Person 1."
-    >
-      <div className="space-y-4">
+    <div className="space-y-4">
         {events.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Keine Erbschaft geplant.
@@ -128,7 +123,6 @@ export function InheritanceEventsCard({
           <Plus className="mr-1 h-4 w-4" />
           Erbschaft hinzufügen
         </Button>
-      </div>
-    </CollapsibleCard>
+    </div>
   );
 }

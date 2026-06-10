@@ -8,6 +8,25 @@ import { Label } from "@/components/ui/label";
 import { formatSwissNumber, parseSwissNumber } from "@/lib/format/numbers";
 import { cn } from "@/lib/utils";
 
+/** Bubble an input event so form-level live previews pick up stepper changes. */
+function notifyFormInput(name?: string, id?: string) {
+  if (typeof document === "undefined") return;
+  const el =
+    (name &&
+      document.querySelector<HTMLInputElement>(
+        `input[name="${CSS.escape(name)}"]`,
+      )) ||
+    (id ? (document.getElementById(id) as HTMLInputElement | null) : null);
+  el?.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function parseNumericText(raw: string, integer = false): number {
+  const cleaned = raw.trim().replace(/'/g, "").replace(/\s/g, "").replace(",", ".");
+  if (!cleaned) return 0;
+  const parsed = integer ? parseInt(cleaned, 10) : parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export function StepperButtons({
   onUp,
   onDown,
@@ -27,7 +46,7 @@ export function StepperButtons({
         type="button"
         variant="outline"
         size="icon"
-        className="h-5 w-7 rounded-b-none px-0"
+        className="h-6 w-8 shrink-0 rounded-b-none px-0"
         disabled={upDisabled}
         aria-label={`${label} erhöhen`}
         onMouseDown={(e) => e.preventDefault()}
@@ -42,7 +61,7 @@ export function StepperButtons({
         type="button"
         variant="outline"
         size="icon"
-        className="h-5 w-7 rounded-t-none border-t-0 px-0"
+        className="h-6 w-8 shrink-0 rounded-t-none border-t-0 px-0"
         disabled={downDisabled}
         aria-label={`${label} verringern`}
         onMouseDown={(e) => e.preventDefault()}
@@ -95,15 +114,15 @@ export function ChfStepperInput({
     onChange({
       target: { value: formatted, name: name ?? "" },
     } as React.ChangeEvent<HTMLInputElement>);
-    onBlur?.();
+    notifyFormInput(name, id);
   };
 
   const parsed = parseSwissNumber(value);
   const downDisabled = disabled || parsed <= min;
 
   return (
-    <div className={cn("flex items-center gap-1", className)}>
-      <div className="relative min-w-0 flex-1">
+    <div className={cn("flex items-center gap-1.5", className)}>
+      <div className="relative min-w-[12rem] flex-1">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
           CHF
         </span>
@@ -117,7 +136,10 @@ export function ChfStepperInput({
           onBlur={onBlur}
           placeholder={placeholder}
           disabled={disabled}
-          className={cn("pl-12 font-mono tabular-nums", inputClassName)}
+          className={cn(
+            "min-w-[12rem] pl-12 font-mono tabular-nums",
+            inputClassName,
+          )}
         />
       </div>
       <StepperButtons
@@ -174,15 +196,17 @@ export function NumberStepperInput({
   placeholder,
   ariaLabel = "Wert",
 }: NumberStepperInputProps) {
-  const numeric = typeof value === "number" ? value : parseFloat(value) || 0;
+  const numeric = parseNumericText(String(value), step >= 1 && Number.isInteger(step));
 
   const emit = (next: number) => {
     let clamped = next;
     if (min != null) clamped = Math.max(min, clamped);
     if (max != null) clamped = Math.min(max, clamped);
+    const text = step >= 1 && Number.isInteger(step) ? String(Math.round(clamped)) : String(clamped);
     onChange({
-      target: { value: String(clamped), name: name ?? "" },
+      target: { value: text, name: name ?? "" },
     } as React.ChangeEvent<HTMLInputElement>);
+    notifyFormInput(name, id);
   };
 
   const adjust = (delta: number) => {
@@ -197,19 +221,20 @@ export function NumberStepperInput({
     disabled || (min != null && numeric <= min);
 
   return (
-    <div className={cn("flex items-center gap-1", className)}>
+    <div className={cn("flex items-center gap-1.5", className)}>
       <Input
         id={id}
         name={name}
-        type="number"
+        type="text"
+        inputMode={step >= 1 && Number.isInteger(step) ? "numeric" : "decimal"}
         value={value}
-        step={step}
-        min={min}
-        max={max}
         onChange={onChange}
         placeholder={placeholder}
         disabled={disabled}
-        className={cn("min-w-0 flex-1 font-mono tabular-nums", inputClassName)}
+        className={cn(
+          "min-w-[8rem] flex-1 font-mono tabular-nums",
+          inputClassName,
+        )}
       />
       <StepperButtons
         label={ariaLabel}
@@ -282,10 +307,11 @@ export function PercentStepperInput({
 
   const adjust = (delta: number) => {
     emit(Math.round((parsed + delta) / step) * step);
+    notifyFormInput(name, id);
   };
 
   return (
-    <div className={cn("flex items-center gap-1", className)}>
+    <div className={cn("flex items-center gap-1.5", className)}>
       <Input
         id={id}
         name={name}
@@ -295,7 +321,7 @@ export function PercentStepperInput({
         onChange={onChange}
         placeholder={placeholder}
         disabled={disabled}
-        className={cn("w-24 font-mono tabular-nums", inputClassName)}
+        className={cn("min-w-[5rem] w-28 font-mono tabular-nums", inputClassName)}
       />
       {showSuffix ? (
         <span className="shrink-0 text-sm text-muted-foreground">%</span>
@@ -349,18 +375,16 @@ export function PercentStepperNumberInput({
   const clamp = (v: number) => Math.min(max, Math.max(min, roundToStep(v)));
 
   return (
-    <div className={cn("flex items-center gap-1", className)}>
+    <div className={cn("flex items-center gap-1.5", className)}>
       <Input
-        type="number"
-        className={cn("w-24 font-mono", inputClassName)}
+        type="text"
+        inputMode="decimal"
+        className={cn("min-w-[5rem] w-28 font-mono tabular-nums", inputClassName)}
         value={value}
-        step={step}
-        min={min}
-        max={max}
         disabled={disabled}
         onChange={(e) => {
           if (disabled) return;
-          onChange(clamp(parseFloat(e.target.value) || 0));
+          onChange(clamp(parseFloat(e.target.value.replace(",", ".")) || 0));
         }}
       />
       <span className="shrink-0 text-sm text-muted-foreground">%</span>
@@ -407,13 +431,14 @@ export function PlainChfStepperInput({
     const parsed = parseSwissNumber(value);
     const next = Math.max(min, parsed + delta);
     onChange(formatSwissNumber(next, allowZero));
+    notifyFormInput(name, id);
   };
 
   const parsed = parseSwissNumber(value);
   const downDisabled = disabled || parsed <= min;
 
   return (
-    <div className={cn("flex items-center gap-1", className)}>
+    <div className={cn("flex items-center gap-1.5", className)}>
       <Input
         id={id}
         name={name}
@@ -423,7 +448,7 @@ export function PlainChfStepperInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className={cn("min-w-0 flex-1 font-mono tabular-nums", inputClassName)}
+        className={cn("min-w-[12rem] flex-1 font-mono tabular-nums", inputClassName)}
       />
       <StepperButtons
         label={ariaLabel}

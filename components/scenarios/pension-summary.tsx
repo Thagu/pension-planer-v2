@@ -4,7 +4,6 @@ import { Building2, Info, Landmark, ShieldCheck, Wallet } from "lucide-react";
 
 import { formatCHF, type ScenarioPensionResult } from "@/lib/engine";
 import { formatRatePercent } from "@/lib/format/numbers";
-import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { ModuleExplanation } from "./module-explanation";
 
 export function PensionSummary({
@@ -43,13 +42,7 @@ export function PensionSummary({
     result.summary.totalCapitalInjectionsToFreeAssets > 0;
 
   return (
-    <CollapsibleCard
-      title="Rentenvorschau"
-      description={`Erwerbsaufgabe mit ${retirementAge} Jahren · AHV ab ${result.ahv.pensionStartAge} J. · BVG ab ${result.bvg.pensionStartAge} J.`}
-      className="border-primary/25 bg-primary/5"
-      defaultOpen
-    >
-      <div className="space-y-5">
+    <div className="space-y-5">
         <PillarRow
           icon={<ShieldCheck className="h-4 w-4 text-primary" />}
           label="AHV (1. Säule)"
@@ -155,8 +148,7 @@ export function PensionSummary({
             />
           ) : null}
         </div>
-      </div>
-    </CollapsibleCard>
+    </div>
   );
 }
 

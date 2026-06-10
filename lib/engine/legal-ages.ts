@@ -50,19 +50,15 @@ export function getPillar3aEarliestWithdrawalAge(
 }
 
 /**
- * Frühester effektiver 3a-Bezug im Szenario:
- * gesetzliches Fenster (5 J. vor AHV-Referenz) oder ab Erwerbsaufgabe mit Altersleistung.
+ * Frühester effektiver 3a-Bezug: gesetzlich 5 Jahre vor AHV-Referenzalter (BVV 3).
+ * Frühere Erwerbsaufgabe erlaubt keinen Kapitalbezug vor diesem Alter.
  */
 export function getPillar3aEffectiveEarliestWithdrawalAge(
   birthDate: string,
   gender: PensionGender | null | undefined,
-  employmentEndAge: number,
+  _employmentEndAge: number,
 ): number {
-  const statutoryEarliest = getPillar3aEarliestWithdrawalAge(birthDate, gender);
-  if (employmentEndAge < statutoryEarliest) {
-    return employmentEndAge;
-  }
-  return statutoryEarliest;
+  return getPillar3aEarliestWithdrawalAge(birthDate, gender);
 }
 
 /**

@@ -5,6 +5,11 @@
 import type { FreeAssetsYearProjection } from "./modules/free-assets";
 import { applyCoupleAhvPlafonierung } from "./modules/ahv-couple";
 import {
+  buildHouseholdCashflowContext,
+  computeHouseholdYearCashflow,
+  type HouseholdCashflowContext,
+} from "./household-cashflow";
+import {
   calculateScenarioPension,
   recalculateScenarioPensionFreeAssets,
   type ScenarioOverrides,
@@ -15,7 +20,7 @@ import type {
   HouseholdProfileForScenario,
 } from "@/lib/household/types";
 import { normalizeInheritanceEvents } from "./inheritance";
-import { inflateAmount, inflationRateFromProfile } from "./inflation";
+import { inflationRateFromProfile } from "./inflation";
 import { normalizeMaritalStatus } from "@/lib/tax/types";
 
 export type HouseholdPensionResult = {
@@ -162,34 +167,77 @@ function horizonEndYear(
   return new Date(birthDate).getFullYear() + horizonAge;
 }
 
-/** Vermögen von Person 1 geht an Person 2 beim Planungshorizont von Person 1 */
+type FirstDeathEvent = {
+  deceased: "primary" | "partner";
+  deathYear: number;
+  horizonAge: number;
+};
+
+/** First partner to reach planning horizon age is modeled as deceased. */
+function firstDeathEvent(
+  primaryBirth: string,
+  partnerBirth: string,
+  primaryHorizonAge: number,
+  partnerHorizonAge: number,
+): FirstDeathEvent {
+  const primaryDeathYear = horizonEndYear(primaryBirth, primaryHorizonAge);
+  const partnerDeathYear = horizonEndYear(partnerBirth, partnerHorizonAge);
+
+  if (primaryDeathYear <= partnerDeathYear) {
+    return {
+      deceased: "primary",
+      deathYear: primaryDeathYear,
+      horizonAge: primaryHorizonAge,
+    };
+  }
+  return {
+    deceased: "partner",
+    deathYear: partnerDeathYear,
+    horizonAge: partnerHorizonAge,
+  };
+}
+
+/** Vermögen des Verstorbenen geht an den überlebenden Partner. */
 function applySurvivorWealthTransfer(
   rows: CombinedWealthYearProjection[],
+  primaryBirth: string,
+  partnerBirth: string,
   primaryHorizonAge: number,
-  partnerIsYounger: boolean,
+  partnerHorizonAge: number,
 ): CombinedWealthYearProjection[] {
-  if (!partnerIsYounger || rows.length === 0) return rows;
+  if (rows.length === 0) return rows;
 
-  const horizonIdx = rows.findIndex((row) => row.primaryAge >= primaryHorizonAge);
+  const death = firstDeathEvent(
+    primaryBirth,
+    partnerBirth,
+    primaryHorizonAge,
+    partnerHorizonAge,
+  );
+  const horizonIdx = rows.findIndex((row) => row.year >= death.deathYear);
   if (horizonIdx < 0) return rows;
 
-  const transferAmount = rows[horizonIdx].primaryCapitalEnd;
+  const deceasedIsPrimary = death.deceased === "primary";
+  const transferAmount = deceasedIsPrimary
+    ? rows[horizonIdx].primaryCapitalEnd
+    : rows[horizonIdx].partnerCapitalEnd;
   if (transferAmount <= 0) return rows;
 
   return rows.map((row, index) => {
     if (index < horizonIdx) return row;
 
-    const primaryCapitalEnd = 0;
-    const partnerCapitalEnd = row.partnerCapitalEnd + transferAmount;
-    const capitalEnd = partnerCapitalEnd;
+    const primaryCapitalEnd = deceasedIsPrimary
+      ? 0
+      : row.primaryCapitalEnd + transferAmount;
+    const partnerCapitalEnd = deceasedIsPrimary
+      ? row.partnerCapitalEnd + transferAmount
+      : 0;
+    const capitalEnd = primaryCapitalEnd + partnerCapitalEnd;
     const survivorWealthTransfer =
       index === horizonIdx ? transferAmount : undefined;
 
     let capitalStart = row.capitalStart;
     if (index === horizonIdx) {
-      capitalStart =
-        rows[horizonIdx - 1]?.capitalEnd ??
-        row.capitalStart - transferAmount + partnerCapitalEnd;
+      capitalStart = rows[horizonIdx - 1]?.capitalEnd ?? row.capitalStart;
     } else if (index > horizonIdx) {
       capitalStart = rows[index - 1]?.capitalEnd ?? row.capitalStart;
     }
@@ -207,80 +255,45 @@ function applySurvivorWealthTransfer(
   });
 }
 
-function yearsSinceHouseholdExpenseStart(
+function applyHouseholdCashflowToRow(
   row: CombinedWealthYearProjection,
-  opts: {
-    primaryEmploymentEnd: number;
-    partnerEmploymentEnd?: number;
-  },
-): number {
-  const primaryStarted = row.primaryAge >= opts.primaryEmploymentEnd;
-  const partnerStarted =
-    opts.partnerEmploymentEnd != null &&
-    row.partnerAge != null &&
-    row.partnerAge >= opts.partnerEmploymentEnd;
-
-  if (!primaryStarted && !partnerStarted) return 0;
-
-  const candidates: number[] = [];
-  if (primaryStarted) {
-    candidates.push(row.primaryAge - opts.primaryEmploymentEnd);
+  cashflow: ReturnType<typeof computeHouseholdYearCashflow>,
+  poolStart: number,
+): CombinedWealthYearProjection {
+  if (cashflow.phase === "accumulation") {
+    return {
+      ...row,
+      capitalStart: poolStart,
+      capitalEnd:
+        poolStart +
+        row.savingsContribution +
+        row.interest +
+        row.capitalInjection -
+        row.annualTotalTax,
+    };
   }
-  if (partnerStarted && row.partnerAge != null) {
-    candidates.push(row.partnerAge - opts.partnerEmploymentEnd!);
-  }
-  return Math.min(...candidates);
-}
 
-function householdGrossExpenses(
-  row: CombinedWealthYearProjection,
-  opts: {
-    baseExpenses: number;
-    primaryEmploymentEnd: number;
-    partnerEmploymentEnd?: number;
-    primaryPillar3aContribution: number;
-    partnerPillar3aContribution?: number;
-    inflationRate?: number;
-    primaryCurrentAge: number;
-    partnerCurrentAge?: number;
-  },
-): number {
-  if (!opts || opts.baseExpenses <= 0) return 0;
-  const primaryRetired = row.primaryAge >= opts.primaryEmploymentEnd;
-  const partnerRetired =
-    opts.partnerEmploymentEnd != null &&
-    row.partnerAge != null &&
-    row.partnerAge >= opts.partnerEmploymentEnd;
-  if (!primaryRetired && !partnerRetired) return 0;
+  const capitalEnd =
+    poolStart +
+    row.savingsContribution +
+    row.interest +
+    row.capitalInjection -
+    cashflow.netWithdrawal -
+    row.annualTotalTax;
 
-  const inflationRate = opts.inflationRate ?? 0;
-  const yearsSinceRetirement = yearsSinceHouseholdExpenseStart(row, opts);
-  let expenses = inflateAmount(
-    opts.baseExpenses,
-    inflationRate,
-    yearsSinceRetirement,
-  );
-
-  const primaryYearIndex = Math.max(0, row.primaryAge - opts.primaryCurrentAge);
-  if (primaryRetired) {
-    expenses -= inflateAmount(
-      opts.primaryPillar3aContribution,
-      inflationRate,
-      primaryYearIndex,
-    );
-  }
-  if (partnerRetired && row.partnerAge != null) {
-    const partnerYearIndex =
-      opts.partnerCurrentAge != null
-        ? Math.max(0, row.partnerAge - opts.partnerCurrentAge)
-        : primaryYearIndex;
-    expenses -= inflateAmount(
-      opts.partnerPillar3aContribution ?? 0,
-      inflationRate,
-      partnerYearIndex,
-    );
-  }
-  return Math.max(0, expenses);
+  return {
+    ...row,
+    capitalStart: poolStart,
+    capitalEnd,
+    annualGrossExpenses: cashflow.grossCashNeed,
+    annualWithdrawal: cashflow.netWithdrawal,
+    annualTotalExpenses: cashflow.grossCashNeed,
+    netLivingExpenses: cashflow.netLiving,
+    employmentIncomeNet: cashflow.employmentIncomeNet,
+    cashflowPhase: cashflow.phase,
+    pillar3aContributionActive: cashflow.pillar3aContribution,
+    bvgEmployeeContributionActive: cashflow.bvgEmployeeContribution,
+  };
 }
 
 export function mergeWealthProjections(
@@ -294,16 +307,7 @@ export function mergeWealthProjections(
     primaryHorizonAge?: number;
     partnerHorizonAge?: number;
     applySurvivorTransfer?: boolean;
-    householdExpenseOptions?: {
-      baseExpenses: number;
-      primaryEmploymentEnd: number;
-      partnerEmploymentEnd?: number;
-      primaryPillar3aContribution: number;
-      partnerPillar3aContribution?: number;
-      inflationRate?: number;
-      primaryCurrentAge: number;
-      partnerCurrentAge?: number;
-    };
+    householdCashflowContext?: HouseholdCashflowContext;
   },
 ): CombinedWealthYearProjection[] {
   const primaryByYear = new Map(primaryProj.map((row) => [row.year, row]));
@@ -341,6 +345,8 @@ export function mergeWealthProjections(
     years.push(year);
   }
 
+  let poolCapital: number | null = null;
+
   const merged = years.map((year) => {
     const row = combineYearRows(
       primaryBirth,
@@ -350,18 +356,20 @@ export function mergeWealthProjections(
       year,
     );
 
-    if (options?.householdExpenseOptions) {
-      const grossExpenses = householdGrossExpenses(
+    if (options?.householdCashflowContext) {
+      const poolStart = poolCapital ?? row.capitalStart;
+      const cashflow = computeHouseholdYearCashflow(
         row,
-        options.householdExpenseOptions,
+        options.householdCashflowContext,
+        row.annualPensionIncome,
+        row.annualTotalTax,
       );
-      if (grossExpenses > 0) {
-        const withdrawal = Math.max(0, grossExpenses - row.annualPensionIncome);
-        row.annualWithdrawal = withdrawal;
-        row.annualGrossExpenses = grossExpenses;
-        row.annualTotalExpenses = grossExpenses + row.annualTotalTax;
-      }
-    } else if (
+      const adjusted = applyHouseholdCashflowToRow(row, cashflow, poolStart);
+      poolCapital = adjusted.capitalEnd;
+      return adjusted;
+    }
+
+    if (
       householdExpenses > 0 &&
       row.primaryAge >= householdRetirementAge
     ) {
@@ -381,12 +389,14 @@ export function mergeWealthProjections(
     options?.applySurvivorTransfer &&
     partnerBirth &&
     options.primaryHorizonAge != null &&
-    isPartnerYounger(primaryBirth, partnerBirth)
+    options.partnerHorizonAge != null
   ) {
     return applySurvivorWealthTransfer(
       merged,
+      primaryBirth,
+      partnerBirth,
       options.primaryHorizonAge,
-      true,
+      options.partnerHorizonAge,
     );
   }
 
@@ -443,19 +453,26 @@ export function calculateHouseholdPension(
     overrides;
 
   const sharedInheritance = normalizeInheritanceEvents(inheritance);
+  const coupleMode =
+    household.planningMode === "couple" && household.partner != null;
 
-  let primaryResult = calculateScenarioPension(household.primary, {
-    ...primaryOverrides,
-    inheritance: inheritanceForPerson(sharedInheritance, "primary"),
-  });
+  let primaryResult = calculateScenarioPension(
+    coupleMode
+      ? stripHouseholdExpenses(household.primary)
+      : household.primary,
+    {
+      ...primaryOverrides,
+      inheritance: inheritanceForPerson(sharedInheritance, "primary"),
+    },
+  );
 
   let partnerResult: ScenarioPensionResult | null = null;
   let ahvCouplePlafonierungApplied = false;
   let ahvCoupleCapYearly: number | undefined;
 
-  if (household.planningMode === "couple" && household.partner) {
+  if (coupleMode) {
     partnerResult = calculateScenarioPension(
-      stripHouseholdExpenses(household.partner),
+      stripHouseholdExpenses(household.partner!),
       {
         ...(partnerOverrides ?? {}),
         inheritance: inheritanceForPerson(sharedInheritance, "partner"),
@@ -485,50 +502,36 @@ export function calculateHouseholdPension(
     partnerResult?.summary.employmentEndAge ?? 0,
   );
 
-  const primaryHorizonAge = household.primary.planningHorizonAge ?? 90;
+  const primaryHorizonAge = household.primary.planningHorizonAge ?? 95;
   const partnerHorizonAge =
     household.partner?.planningHorizonAge ?? primaryHorizonAge;
 
-  const primaryCurrentAge = ageFromBirth(
-    household.primary.birthDate,
-    new Date().getFullYear(),
-  );
   const householdInflation = inflationRateFromProfile(
     household.primary.inflationRate,
   );
-  const partnerCurrentAge =
-    household.partner != null
-      ? ageFromBirth(
-          household.partner.birthDate,
-          new Date().getFullYear(),
-        )
-      : undefined;
+
+  const householdCashflowContext = coupleMode
+    ? buildHouseholdCashflowContext(
+        household,
+        primaryResult,
+        partnerResult,
+        householdInflation,
+      )
+    : undefined;
 
   const combinedProjection = mergeWealthProjections(
     household.primary.birthDate,
     household.partner?.birthDate ?? null,
     primaryResult.freeAssets?.projection ?? [],
-    partnerResult?.freeAssets?.projection ?? null,
+    partnerResult?.freeAssets?.projection ?? [],
     household.primary.annualRetirementExpenses ?? 0,
     householdRetirementAge,
-    household.planningMode === "couple" && household.partner
+    coupleMode
       ? {
           primaryHorizonAge,
           partnerHorizonAge,
           applySurvivorTransfer: true,
-          householdExpenseOptions: {
-            baseExpenses: household.primary.annualRetirementExpenses ?? 0,
-            primaryEmploymentEnd: primaryResult.summary.employmentEndAge,
-            partnerEmploymentEnd:
-              partnerResult?.summary.employmentEndAge ?? undefined,
-            primaryPillar3aContribution:
-              primaryResult.pillar3a.totalAnnualContribution,
-            partnerPillar3aContribution:
-              partnerResult?.pillar3a.totalAnnualContribution ?? 0,
-            inflationRate: householdInflation,
-            primaryCurrentAge,
-            partnerCurrentAge,
-          },
+          householdCashflowContext,
         }
       : { primaryHorizonAge },
   );
@@ -559,7 +562,7 @@ export function combinedProjectionToFreeAssets(
     pillar3aCapitalInjection: row.pillar3aCapitalInjection,
     annualGrossExpenses: row.annualGrossExpenses,
     annualPensionOffset: Math.min(
-      row.annualGrossExpenses,
+      row.netLivingExpenses ?? row.annualGrossExpenses,
       row.annualPensionIncome,
     ),
     annualWithdrawal: row.annualWithdrawal,

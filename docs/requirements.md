@@ -402,15 +402,17 @@ Year-by-year from current age to `planningHorizonAge`:
 
 ### 9.7 Household Orchestrator (`household-orchestrator.ts`)
 
-1. Run `calculateScenarioPension` for primary and partner (partner expenses zeroed individually).
+1. Run `calculateScenarioPension` for primary and partner (**both** with household expenses zeroed in couple mode — applied only in merge via `household-cashflow.ts`).
 2. Merge free-asset projections into `CombinedWealthYearProjection[]`:
    - **Time horizon** = years until **younger** person's planning horizon age.
    - Sum household capital, income, expenses, taxes.
    - Track per-person: `primaryCapitalEnd`, `partnerCapitalEnd`, BVG/3a injections by person.
-3. **Dynamic household expenses:** reduce by each person's 3a contribution amount after that person's employment end.
-4. **Per-person savings:** `annual_savings_to_free_assets` stops after that person's retirement age.
-5. **Survivor wealth transfer:** when partner is younger and primary reaches planning horizon age, partner inherits primary's remaining free assets (`survivorWealthTransfer`).
-6. Apply AHV couple plafonierung to combined pension income where applicable.
+3. **Net living model (`household-cashflow.ts`):** `annual_retirement_expenses` = **net** household living costs (housing, food, leisure — excluding taxes, 3a, BVG). No subtraction of 3a contributions from net living (3a runs via salary / 3a module, same as single-person `free-assets`).
+4. **Inflation anchor:** net living inflates from the **first** household retirement (`Math.max` years since each person's employment end — not `Math.min`, which reset inflation when the partner retired later).
+5. **Phases:** `accumulation` (both employed) · `mixed` (one retired, partner salary offsets withdrawal via estimated net salary × `NET_SALARY_ESTIMATE_FACTOR` 0.78) · `full_retirement` (both retired) · `survivor` (first partner reached planning horizon — deceased modeled; `annual_survivor_expenses` replaces couple net living, same inflation anchor from first household retirement). Per-year fields: `netLivingExpenses`, `employmentIncomeNet`, `cashflowPhase`, `pillar3aContributionActive`, `annualWithdrawal` = `max(0, netLiving + retirementTax − pensions − employmentIncomeNet)`.
+6. **Per-person savings:** `annual_savings_to_free_assets` stops after that person's retirement age.
+7. **Survivor wealth transfer:** when the first partner reaches their planning horizon age (older person dies first if horizons equal), the survivor inherits the deceased's remaining free assets (`survivorWealthTransfer`). Projection runs until the **younger** partner reaches planning horizon age (default **95** for both).
+8. Apply AHV couple plafonierung to combined pension income where applicable.
 
 ### 9.8 Financial Independence (`financial-independence.ts`)
 

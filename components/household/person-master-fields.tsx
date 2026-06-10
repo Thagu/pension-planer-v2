@@ -147,8 +147,8 @@ export function PersonMasterFields({
   );
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div className="grid gap-2 md:col-span-2">
+    <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-2 xl:col-span-2">
         <Label htmlFor={field("birthDate")}>Geburtsdatum</Label>
         <Input
           id={field("birthDate")}
@@ -221,11 +221,11 @@ export function PersonMasterFields({
         allowZero
         {...annualSavings}
       />
-      <p className="text-xs text-muted-foreground md:col-span-2">
+      <p className="text-xs text-muted-foreground xl:col-span-2">
         Pro Person erfasst. Die Sparquote fliesst nur bis zur Erwerbsaufgabe dieser
         Person ins freie Vermögen (0 nach Pensionierung). 0 ist als Wert erlaubt.
       </p>
-      <div className="grid gap-2 md:col-span-2">
+      <div className="grid gap-2 xl:col-span-2">
         <Label htmlFor={field("bvgCoordinatedSalaryOverride")}>
           Koordinierter Lohn (Override)
         </Label>
@@ -304,7 +304,7 @@ export function PersonMasterFields({
           step={NUM_STEP.percent}
         />
       </div>
-      <div className="grid gap-2 md:col-span-2">
+      <div className="grid gap-2 xl:col-span-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Label htmlFor={field("bvgContributionRates")}>
             BVG Gutschriften (JSON %)
@@ -325,7 +325,10 @@ export function PersonMasterFields({
           id={field("bvgContributionRates")}
           name={field("bvgContributionRates")}
           value={bvgContributionJson}
-          onChange={(e) => setBvgContributionJson(e.target.value)}
+          onChange={(e) => {
+            setBvgContributionJson(e.target.value);
+            onFieldChange?.();
+          }}
           rows={5}
           placeholder={defaultBvgContributionRatesJson()}
           className="rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
@@ -335,21 +338,25 @@ export function PersonMasterFields({
           Engine-Fallback.
         </p>
       </div>
-      <div className="md:col-span-2">
+      <div className="xl:col-span-2">
         <Pillar3aAccountsEditor
           accounts={pillar3aAccounts}
           defaultReturnRate={pillar3aDefaultReturn}
           formFieldName={
             isPartner ? "pillar3aPartnerAccountsJson" : "pillar3aAccountsJson"
           }
+          onAccountsChange={onFieldChange}
         />
       </div>
-      <div className="md:col-span-2">
+      <div className="xl:col-span-2">
         <WorkloadReductionFields
           idPrefix={person}
           namePrefix={isPartner ? "partnerWorkloadReduction" : "workloadReduction"}
           reductions={workloadReductions}
-          onChange={setWorkloadReductions}
+          onChange={(next) => {
+            setWorkloadReductions(next);
+            onFieldChange?.();
+          }}
         />
       </div>
     </div>

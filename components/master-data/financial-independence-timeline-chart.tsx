@@ -11,6 +11,11 @@ import {
   RIGHT_AXIS_STROKE_DASH,
   WEALTH_LINE_COLOR,
 } from "@/components/charts/chart-tooltip";
+import {
+  cashflowFromCombinedRow,
+  cashflowFromFreeAssetsRow,
+  HouseholdCashflowBreakdown,
+} from "@/components/charts/household-cashflow-tooltip";
 import type { CombinedWealthYearProjection } from "@/lib/household/types";
 import { personLabel, PERSON1_COLOR, PERSON2_COLOR } from "@/lib/household/person-colors";
 import { formatCHF, type FinancialIndependenceTimeline } from "@/lib/engine";
@@ -24,6 +29,7 @@ const BVG_INJECTION_COLOR = "hsl(var(--chart-2))";
 const PILLAR3A_INJECTION_COLOR = "hsl(var(--chart-4))";
 const PENSION_LINE_COLOR = "hsl(var(--chart-5))";
 const EXPENSE_LINE_COLOR = "hsl(var(--chart-1))";
+const WITHDRAWAL_LINE_COLOR = "hsl(var(--chart-3))";
 
 function formatAxisValue(tick: number): string {
   const sign = tick < 0 ? "-" : "";
@@ -243,6 +249,11 @@ function YearTooltip({
         ? "Vermögen erschöpft"
         : "Ruhestand";
 
+  const cashflow =
+    combinedRow != null
+      ? cashflowFromCombinedRow(combinedRow)
+      : cashflowFromFreeAssetsRow(point, point.age >= employmentEndAge);
+
   return (
     <>
       <p className="font-medium text-foreground">
@@ -342,31 +353,14 @@ function YearTooltip({
                 color={PERSON2_COLOR}
               />
             ) : null}
-            {point.annualWithdrawal > 0 ? (
-              <TooltipRow
-                label="Entnahme Vermögen"
-                value={`−${formatCHF(point.annualWithdrawal)}`}
-                tone="negative"
-              />
+            {cashflow ? (
+              <HouseholdCashflowBreakdown cashflow={cashflow} />
             ) : null}
             {point.interest > 0 ? (
               <TooltipRow
                 label="Verzinsung (Portfolio)"
                 value={formatCHF(point.interest)}
                 tone="muted"
-              />
-            ) : null}
-            {point.annualTotalTax > 0 ? (
-              <TooltipRow
-                label="Steuern"
-                value={`−${formatCHF(point.annualTotalTax)}`}
-                tone="muted"
-              />
-            ) : null}
-            {point.annualGrossExpenses > 0 ? (
-              <TooltipRow
-                label="Lebenshaltung"
-                value={`−${formatCHF(point.annualGrossExpenses)}`}
               />
             ) : null}
           </>
@@ -460,7 +454,14 @@ function FinancialIndependenceTimelineChartInner({
 
   const wealthPath = linePathFor((p) => p.capitalEnd, yCapital);
   const pensionPath = linePathFor((p) => p.annualPensionIncome, yAnnualFlow);
-  const expensePath = linePathFor((p) => p.annualTotalExpenses, yAnnualFlow);
+  const netLivingPath = linePathFor(
+    (p) => {
+      const detail = combinedDetail?.find((row) => row.year === p.year);
+      return detail?.netLivingExpenses ?? p.annualGrossExpenses;
+    },
+    yAnnualFlow,
+  );
+  const withdrawalPath = linePathFor((p) => p.annualWithdrawal, yAnnualFlow);
 
   const yTicks = 4;
   const capitalTickValues = Array.from({ length: yTicks + 1 }, (_, i) =>
@@ -542,8 +543,10 @@ function FinancialIndependenceTimelineChartInner({
   return (
     <div className="relative space-y-3">
       <p className="text-xs text-muted-foreground">
-        Vermögensverlauf und jährliche Renten/Ausgaben. Vertikale Linien markieren
-        Erwerbsaufgabe, Rentenbeginn und ggf. Vermögenserschöpfung.
+        Vermögensverlauf und jährliche Cashflows. Netto-Lebenshaltung startet ab
+        dem ersten Haushalts-Ruhestand (mit Teuerung); in der Mischphase mindert
+        der Lohn des noch erwerbstätigen Partners die Entnahme. Vertikale Linien
+        markieren Erwerbsaufgabe, Rentenbeginn und ggf. Vermögenserschöpfung.
       </p>
 
       {!sustainable && depletionAge != null ? (
@@ -666,15 +669,26 @@ function FinancialIndependenceTimelineChartInner({
           />
         )}
 
-        {isVisible("expenses") ? (
+        {isVisible("netLiving") ? (
           <path
-            d={expensePath}
+            d={netLivingPath}
             fill="none"
             stroke={EXPENSE_LINE_COLOR}
             strokeWidth={2}
             strokeLinejoin="round"
             strokeDasharray={RIGHT_AXIS_STROKE_DASH}
             opacity={0.75}
+          />
+        ) : null}
+        {isVisible("withdrawal") ? (
+          <path
+            d={withdrawalPath}
+            fill="none"
+            stroke={WITHDRAWAL_LINE_COLOR}
+            strokeWidth={2}
+            strokeLinejoin="round"
+            strokeDasharray="3 3"
+            opacity={0.85}
           />
         ) : null}
         {isVisible("pension") ? (
@@ -794,9 +808,15 @@ function FinancialIndependenceTimelineChartInner({
             variant: "dashed-line",
           },
           {
-            id: "expenses",
-            label: "Ausgaben/Jahr",
+            id: "netLiving",
+            label: "Lebenshaltung (netto)/Jahr",
             color: EXPENSE_LINE_COLOR,
+            variant: "dashed-line",
+          },
+          {
+            id: "withdrawal",
+            label: "Entnahme Vermögen/Jahr",
+            color: WITHDRAWAL_LINE_COLOR,
             variant: "dashed-line",
           },
           {

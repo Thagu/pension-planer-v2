@@ -113,6 +113,11 @@ export function FinancialIndependencePanel({
               label={`Endvermögen (${result.planningHorizonAge} J.)`}
               value={formatCHF(result.endCapitalAtHorizon)}
             />
+            <Metric
+              label="Tiefster Stand (Ruhestand)"
+              value={formatCHF(result.minCapitalDuringRetirement)}
+              detail="Puffer über 0 = tragfähig"
+            />
           </div>
 
           <FinancialIndependenceTimelineChart

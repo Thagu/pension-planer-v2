@@ -148,6 +148,8 @@ export interface ProfileForScenario {
   };
   planningHorizonAge?: number | null;
   annualRetirementExpenses?: number | null;
+  /** Netto-Lebenshaltung wenn nur ein Partner lebt (Paarmodus, heutige Kaufkraft) */
+  annualSurvivorExpenses?: number | null;
   /** Bis zu 2 Arbeitspensum-Reduktionen ab Alter */
   workloadReductions?: WorkloadReduction[];
   taxSettings?: import("@/lib/tax/additional-income-tax").TaxSettings;

@@ -284,6 +284,7 @@ export async function saveMasterData(formData: FormData) {
     annual_savings_to_free_assets: extensions.annual_savings_to_free_assets,
     planning_horizon_age: extensions.planning_horizon_age,
     annual_retirement_expenses: extensions.annual_retirement_expenses,
+    annual_survivor_expenses: extensions.annual_survivor_expenses,
     pillar3a_auto_split_enabled: extensions.pillar3a_auto_split_enabled,
     pillar3a_auto_split_threshold: extensions.pillar3a_auto_split_threshold,
     pillar3a_auto_split_contribution_mode:

@@ -1,4 +1,5 @@
 import type { ProfileForScenario } from "@/lib/engine/orchestrator";
+import type { HouseholdCashflowPhase } from "@/lib/engine/household-cashflow";
 import type { WorkloadReduction } from "@/lib/engine/workload";
 
 export type PlanningMode = "single" | "couple";
@@ -62,6 +63,16 @@ export type CombinedWealthYearProjection = {
   partnerBvgCapitalInjection: number;
   primaryPillar3aCapitalInjection: number;
   partnerPillar3aCapitalInjection: number;
-  /** Vermögen von Person 1 → Person 2 beim Planungshorizont von Person 1 */
+  /** Vermögen des Verstorbenen → überlebender Partner beim ersten Planungshorizont */
   survivorWealthTransfer?: number;
+  /** Netto-Lebenshaltung (inflationsbereinigt ab erstem Ruhestand) */
+  netLivingExpenses?: number;
+  /** Geschätzter Netto-Lohn noch erwerbstätiger Partner/Personen */
+  employmentIncomeNet?: number;
+  /** Haushalts-Cashflow-Phase */
+  cashflowPhase?: HouseholdCashflowPhase;
+  /** Summe aktiver 3a-Einzahlungen im Jahr (Info) */
+  pillar3aContributionActive?: number;
+  /** BVG-Arbeitnehmerbeiträge im Jahr (Info) */
+  bvgEmployeeContributionActive?: number;
 };

@@ -20,6 +20,31 @@ import type { HouseholdProfileForScenario } from "@/lib/household/types";
 import { persistedPillar3aAccountIdOrNull } from "@/lib/pillar3a/accounts";
 import { buildExtensionsPayload } from "@/lib/profile/extensions";
 import type { TaxSettings } from "@/lib/tax/additional-income-tax";
+import { DEFAULT_TAX_CANTON_CODE } from "@/lib/tax/canton-reference";
+import { taxSettingsFromProfile } from "@/lib/tax/profile-tax";
+
+/** Live preview: tax domicile from current form values (not stale server profile). */
+export function taxSettingsFromFormData(formData: FormData): TaxSettings {
+  const maritalStatus = formData.get("maritalStatus");
+  const canton = formData.get("taxCanton");
+  const municipality = formData.get("taxMunicipality");
+
+  return taxSettingsFromProfile({
+    marital_status:
+      typeof maritalStatus === "string" && maritalStatus.trim()
+        ? maritalStatus
+        : "single",
+    tax_canton:
+      typeof canton === "string" && canton.trim()
+        ? canton
+        : DEFAULT_TAX_CANTON_CODE,
+    tax_municipality:
+      typeof municipality === "string" && municipality.trim()
+        ? municipality.trim()
+        : null,
+    tax_municipality_steuerfuss: null,
+  });
+}
 
 function toYearOrNull(value: FormDataEntryValue | null): number | null {
   if (typeof value !== "string") return null;
@@ -137,8 +162,9 @@ function primaryProfileFromForm(
           namePrefix: extensions.pillar3a_auto_split_name_prefix,
         }
       : undefined,
-    planningHorizonAge: extensions.planning_horizon_age ?? 90,
+    planningHorizonAge: extensions.planning_horizon_age ?? 95,
     annualRetirementExpenses: extensions.annual_retirement_expenses,
+    annualSurvivorExpenses: extensions.annual_survivor_expenses,
     workloadReductions: normalizeWorkloadReductions(extensions.workload_reductions),
     taxSettings,
     pillar3aAccounts: parsePillar3aAccountsFromForm(
