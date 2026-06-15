@@ -9,6 +9,8 @@ Ein moderner, intuitiver Rentenrechner und Finanzplaner, der Licht ins Dunkel de
 
 ## 🚀 Features
 
+* **Partner-Modus:** Simuliere deine Pension zusammen mit deinem Lebenspartner
+* **Schweizer Vorsorgewerk:** Berücksichtigung aller 3 Säulen, inklusive Steueroptimierer bei Kapitalbezug im Alter
 * **Szenarien-Rechner:** Simuliere Früheinstieg, Regelaltersrente oder flexible Rentenmodelle.
 * **Inflations- & Steuerberechnung:** Realistische Hochrechnungen durch Berücksichtigung von Kaufkraftverlust und voraussichtlicher Besteuerung.
 * **Visuelle Dashboards:** Interaktive Graphen, die dir zeigen, wie sich dein Vermögen und deine Rentenansprüche über die Zeit entwickeln.
@@ -45,15 +47,12 @@ npm start
 Öffne anschließend http://localhost:3000 in deinem Browser.
 
 📸 Screenshots / Mockups
-(Tipp: Füge hier ein oder zwei Screenshots deiner App ein, sobald das UI steht. Das wertet jedes Repo massiv auf!)
+<img width="849" height="849" alt="image" src="https://github.com/user-attachments/assets/52daf33c-c15e-4d93-b47b-983817fa3dc7" />
 
-[Hier optional ein Bild deiner Benutzeroberfläche einfügen]
 🗺️ Roadmap / Geplante Features
-[ ] Integration einer CSV-Exportfunktion für die Berechnungen
 
 [ ] Optimierung der mobilen Ansicht (Responsive Design)
-
-[ ] Anbindung an offizielle Renten-APIs (falls verfügbar)
+[ ] tbd
 
 📄 Lizenz
 Dieses Projekt ist unter der MIT-Lizenz lizenziert – siehe die LICENSE Datei für Details.
