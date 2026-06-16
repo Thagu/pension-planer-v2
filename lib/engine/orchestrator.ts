@@ -55,7 +55,7 @@ function currentAgeFromBirthDate(birthDate: string): number {
   return age;
 }
 
-function resolveWorkloadReductions(
+export function resolveWorkloadReductions(
   profile: ProfileForScenario,
   overrides: ScenarioOverrides,
 ): WorkloadReduction[] {
@@ -648,10 +648,22 @@ export function recalculateScenarioPensionFreeAssets(
   const workloadReductions = resolveWorkloadReductions(profile, overrides);
   const referenceSalaryBrutto =
     overrides.ahv?.averageIncomeOverride ?? profile.currentSalaryBrutto;
-  const freeAssetsBaseValue = profile.freeAssets ?? 0;
+  const freeAssetsBaseValue =
+    overrides.freeAssets?.currentValueOverride ?? profile.freeAssets ?? 0;
   const annualSavings = profile.annualSavingsToFreeAssets ?? 0;
   const annualRetirementExpenses = profile.annualRetirementExpenses ?? 0;
   const hasInjections = scheduledInjections.some((i) => i.amount > 0);
+
+  const returnRate =
+    overrides.freeAssets?.returnRateOverride != null
+      ? rateFromScenarioOverride(overrides.freeAssets.returnRateOverride) ??
+        undefined
+      : profile.freeAssetsInterestRate != null
+        ? rateFromProfileDb(
+            profile.freeAssetsInterestRate,
+            DEFAULT_ASSUMPTIONS.returnRateFreeAssets,
+          )
+        : undefined;
 
   const freeAssets =
     freeAssetsBaseValue > 0 ||
@@ -663,14 +675,7 @@ export function recalculateScenarioPensionFreeAssets(
           birthDate: profile.birthDate,
           currentValue: freeAssetsBaseValue,
           retirementAge: employmentEndAge,
-          returnRate:
-            overrides.freeAssets?.returnRateOverride != null
-              ? (rateFromScenarioOverride(
-                  overrides.freeAssets.returnRateOverride,
-                ) ?? undefined)
-              : profile.freeAssetsInterestRate != null
-                ? profile.freeAssetsInterestRate
-                : undefined,
+          returnRate,
           annualSavingsContribution: annualSavings,
           workloadReductions,
           referenceSalaryBrutto,

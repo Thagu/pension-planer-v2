@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { Home, Settings2 } from "lucide-react";
 
 import { deleteScenario } from "@/app/scenarios/actions";
+import { CopyScenarioForm } from "@/components/scenarios/copy-scenario-form";
 import { ScenarioForm } from "@/components/scenarios/scenario-form";
 import type { ScenarioRecord } from "@/components/scenarios/scenario-form";
 import { loadHouseholdProfileForScenario } from "@/lib/profile/load-household-profile";
@@ -73,11 +74,14 @@ export async function ScenarioDetailContent({
             </Button>
           </nav>
         </div>
-        <form action={deleteScenario.bind(null, id)}>
-          <Button type="submit" variant="destructive" size="sm">
-            Löschen
-          </Button>
-        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          <CopyScenarioForm sourceId={id} defaultName={scenario.name} />
+          <form action={deleteScenario.bind(null, id)}>
+            <Button type="submit" variant="destructive" size="sm">
+              Löschen
+            </Button>
+          </form>
+        </div>
       </div>
 
       <ScenarioForm

@@ -15,6 +15,10 @@ import {
   RIGHT_AXIS_STROKE_DASH,
   WEALTH_LINE_COLOR,
 } from "@/components/charts/chart-tooltip";
+import {
+  hasCapitalInjectionMarker,
+  injectionMarkerXOffsets,
+} from "@/lib/charts/injection-markers";
 import type { FreeAssetsYearProjection } from "@/lib/engine";
 import { formatCHF } from "@/lib/engine";
 
@@ -24,6 +28,7 @@ const PAD = { top: 20, right: 52, bottom: 40, left: 64 };
 
 const BVG_INJECTION_COLOR = "hsl(var(--chart-2))";
 const PILLAR3A_INJECTION_COLOR = "hsl(var(--chart-4))";
+const INHERITANCE_INJECTION_COLOR = "hsl(217 70% 55%)";
 const INCOME_LINE_COLOR = "hsl(var(--chart-5))";
 const EXPENSE_LINE_COLOR = "hsl(var(--chart-1))";
 const SAVINGS_LINE_COLOR = "hsl(142 55% 42%)";
@@ -122,7 +127,8 @@ function YearTooltip({
     point.interest > 0 ||
     point.annualPensionIncome > 0 ||
     point.bvgCapitalInjection > 0 ||
-    point.pillar3aCapitalInjection > 0;
+    point.pillar3aCapitalInjection > 0 ||
+    (point.inheritanceInjection ?? 0) > 0;
   const hasExpenseDetails =
     point.annualGrossExpenses > 0 || point.annualTotalTax > 0;
 
@@ -187,6 +193,14 @@ function YearTooltip({
                 value={`+${formatCHF(point.pillar3aCapitalInjection)}`}
                 tone="positive"
                 color={PILLAR3A_INJECTION_COLOR}
+              />
+            ) : null}
+            {(point.inheritanceInjection ?? 0) > 0 ? (
+              <TooltipRow
+                label="Erbschaft / Schenkung"
+                value={`+${formatCHF(point.inheritanceInjection)}`}
+                tone="positive"
+                color={INHERITANCE_INJECTION_COLOR}
               />
             ) : null}
             <TooltipRow
@@ -380,18 +394,28 @@ function FreeAssetsGrowthChartInner({
     setCursor(null);
   };
 
-  const injectionMarkerOffset = (p: FreeAssetsYearProjection): number => {
+  const injectionMarkerLabel = (p: FreeAssetsYearProjection): string => {
     const hasBvg = p.bvgCapitalInjection > 0;
     const has3a = p.pillar3aCapitalInjection > 0;
-    if (hasBvg && has3a) return 4;
-    return 0;
+    const hasInheritance = (p.inheritanceInjection ?? 0) > 0;
+    const parts: string[] = [];
+    if (hasBvg) parts.push("BVG");
+    if (hasInheritance) parts.push("Erbschaft");
+    if (has3a) parts.push("3a");
+    return parts.join(" · ");
+  };
+
+  const injectionMarkerColor = (p: FreeAssetsYearProjection): string => {
+    if (p.bvgCapitalInjection > 0) return BVG_INJECTION_COLOR;
+    if ((p.inheritanceInjection ?? 0) > 0) return INHERITANCE_INJECTION_COLOR;
+    return PILLAR3A_INJECTION_COLOR;
   };
 
   return (
     <div className="relative space-y-3">
       <p className="text-xs text-muted-foreground">
         Linke Skala: Vermögen (CHF). Rechte Skala: Sparquote, Einnahmen und
-        Ausgaben (CHF/J.). Markierungen = Kapitalzuflüsse (BVG, 3a).
+        Ausgaben (CHF/J.). Markierungen = Kapitalzuflüsse (BVG, 3a, Erbschaft).
       </p>
       <div className="relative">
       <svg
@@ -550,21 +574,24 @@ function FreeAssetsGrowthChartInner({
           const isPostRetirement = p.age >= retirementAge;
           const hasBvg = p.bvgCapitalInjection > 0;
           const has3a = p.pillar3aCapitalInjection > 0;
-          const hasInjection = hasBvg || has3a;
-          const offset = injectionMarkerOffset(p);
+          const hasInheritance = (p.inheritanceInjection ?? 0) > 0;
+          const hasInjection = hasCapitalInjectionMarker(p);
+          const offsets = injectionMarkerXOffsets(p);
           const baseR = active ? 6 : hasInjection ? 5 : 2.5;
 
           return (
             <g key={p.year}>
               {hasInjection &&
-              ((hasBvg && isVisible("bvg")) || (has3a && isVisible("pillar3a"))) ? (
+              ((hasBvg && isVisible("bvg")) ||
+                (has3a && isVisible("pillar3a")) ||
+                (hasInheritance && isVisible("inheritance"))) ? (
                 <>
                   <line
                     x1={x(p.age)}
                     y1={PAD.top}
                     x2={x(p.age)}
                     y2={HEIGHT - PAD.bottom}
-                    stroke={hasBvg ? BVG_INJECTION_COLOR : PILLAR3A_INJECTION_COLOR}
+                    stroke={injectionMarkerColor(p)}
                     strokeWidth={1}
                     strokeDasharray="2 4"
                     strokeOpacity={0.35}
@@ -574,11 +601,9 @@ function FreeAssetsGrowthChartInner({
                     y={PAD.top + 10}
                     textAnchor="middle"
                     className="text-[9px] font-medium"
-                    style={{
-                      fill: hasBvg ? BVG_INJECTION_COLOR : PILLAR3A_INJECTION_COLOR,
-                    }}
+                    style={{ fill: injectionMarkerColor(p) }}
                   >
-                    {hasBvg && has3a ? "Kapital" : hasBvg ? "BVG" : "3a"}
+                    {injectionMarkerLabel(p)}
                   </text>
                 </>
               ) : null}
@@ -596,15 +621,23 @@ function FreeAssetsGrowthChartInner({
               ) : null}
               {hasBvg && isVisible("bvg") ? (
                 <circle
-                  cx={x(p.age) - offset}
+                  cx={x(p.age) + offsets.bvg}
                   cy={yCapital(p.capitalEnd)}
                   r={baseR}
                   fill={BVG_INJECTION_COLOR}
                 />
               ) : null}
+              {hasInheritance && isVisible("inheritance") ? (
+                <circle
+                  cx={x(p.age) + offsets.inheritance}
+                  cy={yCapital(p.capitalEnd)}
+                  r={baseR}
+                  fill={INHERITANCE_INJECTION_COLOR}
+                />
+              ) : null}
               {has3a && isVisible("pillar3a") ? (
                 <circle
-                  cx={x(p.age) + offset}
+                  cx={x(p.age) + offsets.pillar3a}
                   cy={yCapital(p.capitalEnd)}
                   r={baseR}
                   fill={PILLAR3A_INJECTION_COLOR}
@@ -695,6 +728,12 @@ function FreeAssetsGrowthChartInner({
             id: "pillar3a",
             label: "Säule 3a Bezug",
             color: PILLAR3A_INJECTION_COLOR,
+            variant: "dot",
+          },
+          {
+            id: "inheritance",
+            label: "Erbschaft / Schenkung",
+            color: INHERITANCE_INJECTION_COLOR,
             variant: "dot",
           },
           {

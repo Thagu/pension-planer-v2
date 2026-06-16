@@ -14,6 +14,7 @@ import {
 import { taxSettingsFromProfile } from "@/lib/tax/profile-tax";
 
 export type ProfileRow = {
+  updated_at?: string | null;
   birth_date: string | null;
   gender: string | null;
   employment_start_year: number | null;

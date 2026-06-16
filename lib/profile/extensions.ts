@@ -148,7 +148,7 @@ export function mergeProfileWithExtensions<T extends MergeableProfile>(
 }
 
 export function isMissingProfileColumnError(message: string): boolean {
-  return /bvg_coordinated_salary_override|annual_savings_to_free_assets|planning_horizon_age|annual_retirement_expenses|annual_survivor_expenses|pillar3a_auto_split|marital_status|tax_canton|tax_postal_code|tax_municipality|workload_reductions|inflation_rate|column.*does not exist/i.test(
+  return /bvg_coordinated_salary_override|annual_savings_to_free_assets|planning_horizon_age|annual_retirement_expenses|annual_survivor_expenses|pillar3a_auto_split|marital_status|tax_canton|tax_postal_code|tax_municipality|workload_reductions|inflation_rate|planning_mode|partner_profile|onboarding_completed_at|onboarding_skipped_at|column.*does not exist/i.test(
     message,
   );
 }

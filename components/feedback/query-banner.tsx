@@ -28,39 +28,57 @@ export function QueryBanner({ banners }: { banners: BannerConfig[] }) {
 }
 
 export function MasterDataSaveBanner() {
-  return (
-    <QueryBanner
-      banners={[
-        {
-          param: "saved",
-          value: "1",
-          className: successClass,
-          message: "Stammdaten erfolgreich gespeichert.",
-        },
-        {
-          param: "error",
-          value: "save_failed",
-          className: errorClass,
-          message:
-            "Speichern fehlgeschlagen. Bitte prüfe die Eingaben und versuche es erneut.",
-        },
-        {
-          param: "error",
-          value: "tax_postal_code_required",
-          className: errorClass,
-          message:
-            "Steuerdomizil: Bitte Kanton und 4-stellige PLZ angeben.",
-        },
-        {
-          param: "error",
-          value: "tax_postal_code_invalid",
-          className: errorClass,
-          message:
-            "Steuerdomizil: PLZ passt nicht zum Kanton oder Gemeinde konnte nicht ermittelt werden.",
-        },
-      ]}
-    />
-  );
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error");
+  const detail = searchParams.get("detail");
+
+  if (error === "save_failed") {
+    return (
+      <div className={errorClass} role="alert">
+        <p className="font-medium">
+          Speichern fehlgeschlagen. Bitte prüfe die Eingaben und versuche es erneut.
+        </p>
+        {detail ? (
+          <p className="mt-2 text-xs leading-relaxed opacity-90">{detail}</p>
+        ) : (
+          <p className="mt-2 text-xs leading-relaxed opacity-90">
+            Technische Details fehlen — prüfe die Server-Konsole oder führe die
+            Supabase-Migrationen aus (Ordner{" "}
+            <span className="font-mono">supabase/migrations</span>, insbesondere
+            011 und 013).
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (error === "tax_postal_code_required") {
+    return (
+      <div className={errorClass} role="alert">
+        Steuerdomizil: Bitte Kanton und 4-stellige PLZ angeben.
+      </div>
+    );
+  }
+
+  if (error === "tax_postal_code_invalid") {
+    return (
+      <div className={errorClass} role="alert">
+        Steuerdomizil: PLZ passt nicht zum Kanton oder Gemeinde konnte nicht
+        ermittelt werden.
+        {detail ? (
+          <p className="mt-2 text-xs leading-relaxed opacity-90">{detail}</p>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (searchParams.get("saved") === "1") {
+    return (
+      <div className={successClass}>Stammdaten erfolgreich gespeichert.</div>
+    );
+  }
+
+  return null;
 }
 
 export function ScenarioSavedBanner() {
@@ -110,10 +128,34 @@ export function ScenarioDetailStatusBanner() {
           message: "Szenario gespeichert.",
         },
         {
+          param: "copied",
+          value: "1",
+          className: `${successClass} mb-4`,
+          message: "Szenario-Kopie erstellt.",
+        },
+        {
           param: "error",
           value: "save_failed",
           className: `${errorClass} mb-4`,
           message: "Speichern fehlgeschlagen.",
+        },
+        {
+          param: "error",
+          value: "copy_missing_name",
+          className: `${errorClass} mb-4`,
+          message: "Bitte einen Namen für die Kopie angeben.",
+        },
+        {
+          param: "error",
+          value: "copy_failed",
+          className: `${errorClass} mb-4`,
+          message: "Kopieren fehlgeschlagen.",
+        },
+        {
+          param: "error",
+          value: "copy_not_found",
+          className: `${errorClass} mb-4`,
+          message: "Quell-Szenario nicht gefunden.",
         },
       ]}
     />

@@ -64,6 +64,7 @@ export async function MasterDataContent() {
 
   return (
     <MasterDataForm
+      key={profile?.updated_at ?? user.id}
       profile={profile}
       household={household}
       primaryPillar3aAccounts={primaryPillar3aAccounts}

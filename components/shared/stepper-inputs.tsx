@@ -5,7 +5,12 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatSwissNumber, parseSwissNumber } from "@/lib/format/numbers";
+import {
+  decimalsForPercentStep,
+  formatPercentInput,
+  formatSwissNumber,
+  parseSwissNumber,
+} from "@/lib/format/numbers";
 import { cn } from "@/lib/utils";
 
 /** Bubble an input event so form-level live previews pick up stepper changes. */
@@ -293,13 +298,15 @@ export function PercentStepperInput({
   ariaLabel = "Prozent",
 }: PercentStepperInputProps) {
   const parsed = parseFloat(value.replace(",", ".")) || 0;
+  const displayDecimals = decimalsForPercentStep(step);
 
   const emit = (next: number) => {
     const clamped = Math.min(max, Math.max(min, next));
-    const text =
+    const stepped =
       step >= 1
-        ? String(Math.round(clamped))
-        : String(Math.round(clamped / step) * step).replace(/\.?0+$/, "");
+        ? Math.round(clamped)
+        : Math.round(clamped / step) * step;
+    const text = formatPercentInput(stepped, displayDecimals);
     onChange({
       target: { value: text, name: name ?? "" },
     } as React.ChangeEvent<HTMLInputElement>);
@@ -310,6 +317,9 @@ export function PercentStepperInput({
     notifyFormInput(name, id);
   };
 
+  const displayValue =
+    value.trim() === "" ? "" : formatPercentInput(parsed, displayDecimals);
+
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <Input
@@ -317,7 +327,7 @@ export function PercentStepperInput({
         name={name}
         type="text"
         inputMode="decimal"
-        value={value}
+        value={displayValue}
         onChange={onChange}
         placeholder={placeholder}
         disabled={disabled}
@@ -373,6 +383,7 @@ export function PercentStepperNumberInput({
 }) {
   const roundToStep = (v: number) => Math.round(v / step) * step;
   const clamp = (v: number) => Math.min(max, Math.max(min, roundToStep(v)));
+  const displayDecimals = decimalsForPercentStep(step);
 
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
@@ -380,7 +391,7 @@ export function PercentStepperNumberInput({
         type="text"
         inputMode="decimal"
         className={cn("min-w-[5rem] w-28 font-mono tabular-nums", inputClassName)}
-        value={value}
+        value={formatPercentInput(value, displayDecimals)}
         disabled={disabled}
         onChange={(e) => {
           if (disabled) return;

@@ -587,6 +587,37 @@ export function ScenarioForm({
     });
   };
 
+  const resolvedPrimaryWorkload = useMemo(
+    () =>
+      normalizeWorkloadReductions(
+        useWorkloadOverride
+          ? workloadReductions
+          : (profile.workloadReductions ?? []),
+      ),
+    [useWorkloadOverride, workloadReductions, profile.workloadReductions],
+  );
+
+  const resolvedPartnerWorkload = useMemo(
+    () =>
+      partnerProfile
+        ? normalizeWorkloadReductions(
+            usePartnerWorkloadOverride
+              ? partnerWorkloadReductions
+              : (partnerProfile.workloadReductions ?? []),
+          )
+        : [],
+    [
+      partnerProfile,
+      usePartnerWorkloadOverride,
+      partnerWorkloadReductions,
+    ],
+  );
+
+  const profileFreeAssetsReturnPercent = profileRateToPercent(
+    profile.freeAssetsInterestRate,
+    0.04,
+  );
+
   const overrides: ScenarioOverrides = useMemo(() => {
     const primaryAhvPartial = ahvOverridesFromState(primaryAhvState, {
       skipRetirement: isCouple,
@@ -613,14 +644,21 @@ export function ScenarioForm({
       bvg: bvgOverridesFromState(primaryBvgState),
       pillar3a: pillar3aOverridesToScenario(profile, pillar3aOverrideState),
       freeAssets: {
-        currentValueOverride: useFreeAssetsValueOverride
-          ? parseSwissNumber(freeAssetsValueOverride)
-          : null,
-        returnRateOverride: useFreeAssetsReturnOverride
-          ? freeAssetsReturnOverride
-          : null,
+        currentValueOverride:
+          useFreeAssetsValueOverride &&
+          parseSwissNumber(freeAssetsValueOverride) !== profile.freeAssets
+            ? parseSwissNumber(freeAssetsValueOverride)
+            : null,
+        returnRateOverride:
+          useFreeAssetsReturnOverride &&
+          Math.abs(freeAssetsReturnOverride - profileFreeAssetsReturnPercent) >
+            0.05
+            ? freeAssetsReturnOverride
+            : null,
       },
-      workloadReductions: useWorkloadOverride ? workloadReductions : undefined,
+      workloadReductions: useWorkloadOverride
+        ? resolvedPrimaryWorkload
+        : undefined,
       inheritance: inheritanceEventsFromDrafts(inheritanceDrafts),
       partner: isCouple
         ? {
@@ -639,7 +677,7 @@ export function ScenarioForm({
                 partnerAhvPartial?.averageIncomeOverride ?? null,
             },
             workloadReductions: usePartnerWorkloadOverride
-              ? partnerWorkloadReductions
+              ? resolvedPartnerWorkload
               : undefined,
             pillar3a: partnerProfile
               ? pillar3aOverridesToScenario(
@@ -690,8 +728,12 @@ export function ScenarioForm({
     usePartnerRetirementOverride,
     partnerRetirementAgeOverride,
     usePartnerWorkloadOverride,
+    partnerWorkloadReductions,
+    resolvedPrimaryWorkload,
+    resolvedPartnerWorkload,
     partnerPillar3aOverrideState,
     partnerProfile,
+    profileFreeAssetsReturnPercent,
   ]);
 
   const householdResult = useMemo(() => {
@@ -816,10 +858,6 @@ export function ScenarioForm({
   const partnerBvgPensionStart = partnerProfile
     ? Math.max(partnerProfile.retirementAge, BVG_EARLIEST_PENSION_AGE)
     : profileBvgPensionStart;
-  const profileFreeAssetsReturnPercent = profileRateToPercent(
-    profile.freeAssetsInterestRate,
-    0.04,
-  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -855,6 +893,7 @@ export function ScenarioForm({
               householdResult={householdResult}
               effectiveRetirementAge={effectiveRetirementAge}
               planningHorizonAge={profile.planningHorizonAge ?? 95}
+              profileRetirementAge={profile.retirementAge}
             />
           }
           previewLabel="Vermögensentwicklung"
@@ -917,6 +956,8 @@ export function ScenarioForm({
           setUsePartnerWorkloadOverride={setUsePartnerWorkloadOverride}
           partnerWorkloadReductions={partnerWorkloadReductions}
           setPartnerWorkloadReductions={setPartnerWorkloadReductions}
+          resolvedPrimaryWorkload={resolvedPrimaryWorkload}
+          resolvedPartnerWorkload={resolvedPartnerWorkload}
           useFreeAssetsValueOverride={useFreeAssetsValueOverride}
           setUseFreeAssetsValueOverride={setUseFreeAssetsValueOverride}
           freeAssetsValueOverride={freeAssetsValueOverride}

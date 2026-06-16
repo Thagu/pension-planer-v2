@@ -10,8 +10,13 @@ import {
   type HouseholdCashflowContext,
 } from "./household-cashflow";
 import {
+  applyWealthYearCashflow,
+  calculatePortfolioInterestFromRate,
+} from "./wealth-cashflow";
+import {
   calculateScenarioPension,
   recalculateScenarioPensionFreeAssets,
+  resolveWorkloadReductions,
   type ScenarioOverrides,
   type ScenarioPensionResult,
 } from "./orchestrator";
@@ -73,6 +78,7 @@ function emptyProjection(age: number, year: number): FreeAssetsYearProjection {
     capitalInjection: 0,
     bvgCapitalInjection: 0,
     pillar3aCapitalInjection: 0,
+    inheritanceInjection: 0,
     annualGrossExpenses: 0,
     annualPensionOffset: 0,
     annualWithdrawal: 0,
@@ -90,11 +96,24 @@ function emptyProjection(age: number, year: number): FreeAssetsYearProjection {
 }
 
 function inheritanceFromProjection(row: FreeAssetsYearProjection): number {
+  if (row.inheritanceInjection > 0) return row.inheritanceInjection;
   const other =
     row.capitalInjection -
     row.bvgCapitalInjection -
     row.pillar3aCapitalInjection;
   return Math.max(0, other);
+}
+
+function resolvePersonProjection(
+  row: FreeAssetsYearProjection | undefined,
+  age: number,
+  year: number,
+  horizonAge?: number,
+): FreeAssetsYearProjection {
+  if (horizonAge != null && age >= horizonAge) {
+    return emptyProjection(age, year);
+  }
+  return row ?? emptyProjection(age, year);
 }
 
 function combineYearRows(
@@ -103,16 +122,31 @@ function combineYearRows(
   primaryRow: FreeAssetsYearProjection | undefined,
   partnerRow: FreeAssetsYearProjection | undefined,
   year: number,
+  options?: {
+    primaryHorizonAge?: number;
+    partnerHorizonAge?: number;
+  },
 ): CombinedWealthYearProjection {
   const primaryAge =
     primaryRow?.age ?? ageFromBirth(primaryBirth, year);
   const partnerAge =
     partnerRow?.age ??
     (partnerBirth ? ageFromBirth(partnerBirth, year) : null);
-  const primary = primaryRow ?? emptyProjection(primaryAge, year);
+  const primary = resolvePersonProjection(
+    primaryRow,
+    primaryAge,
+    year,
+    options?.primaryHorizonAge,
+  );
   const partner =
-    partnerRow ??
-    (partnerAge != null ? emptyProjection(partnerAge, year) : emptyProjection(0, year));
+    partnerAge != null
+      ? resolvePersonProjection(
+          partnerRow,
+          partnerAge,
+          year,
+          options?.partnerHorizonAge,
+        )
+      : emptyProjection(0, year);
 
   const inheritanceInjection =
     inheritanceFromProjection(primary) + inheritanceFromProjection(partner);
@@ -259,34 +293,47 @@ function applyHouseholdCashflowToRow(
   row: CombinedWealthYearProjection,
   cashflow: ReturnType<typeof computeHouseholdYearCashflow>,
   poolStart: number,
+  portfolioReturnRate: number,
 ): CombinedWealthYearProjection {
+  const portfolioInterest = calculatePortfolioInterestFromRate(
+    poolStart,
+    row.savingsContribution,
+    portfolioReturnRate,
+  );
+
   if (cashflow.phase === "accumulation") {
+    const { capitalEnd } = applyWealthYearCashflow({
+      poolStart,
+      savingsContribution: row.savingsContribution,
+      portfolioInterest,
+      capitalInjection: row.capitalInjection,
+      netWithdrawal: 0,
+      annualTotalTax: row.annualTotalTax,
+    });
     return {
       ...row,
       capitalStart: poolStart,
-      capitalEnd:
-        poolStart +
-        row.savingsContribution +
-        row.interest +
-        row.capitalInjection -
-        row.annualTotalTax,
+      interest: portfolioInterest,
+      capitalEnd,
     };
   }
 
-  const capitalEnd =
-    poolStart +
-    row.savingsContribution +
-    row.interest +
-    row.capitalInjection -
-    cashflow.netWithdrawal -
-    row.annualTotalTax;
+  const { capitalEnd, withdrawalFromPrincipal } = applyWealthYearCashflow({
+    poolStart,
+    savingsContribution: row.savingsContribution,
+    portfolioInterest,
+    capitalInjection: row.capitalInjection,
+    netWithdrawal: cashflow.netWithdrawal,
+    annualTotalTax: row.annualTotalTax,
+  });
 
   return {
     ...row,
     capitalStart: poolStart,
+    interest: portfolioInterest,
     capitalEnd,
     annualGrossExpenses: cashflow.grossCashNeed,
-    annualWithdrawal: cashflow.netWithdrawal,
+    annualWithdrawal: withdrawalFromPrincipal,
     annualTotalExpenses: cashflow.grossCashNeed,
     netLivingExpenses: cashflow.netLiving,
     employmentIncomeNet: cashflow.employmentIncomeNet,
@@ -354,6 +401,10 @@ export function mergeWealthProjections(
       primaryByYear.get(year),
       partnerByYear.get(year),
       year,
+      {
+        primaryHorizonAge: options?.primaryHorizonAge,
+        partnerHorizonAge: options?.partnerHorizonAge,
+      },
     );
 
     if (options?.householdCashflowContext) {
@@ -364,7 +415,12 @@ export function mergeWealthProjections(
         row.annualPensionIncome,
         row.annualTotalTax,
       );
-      const adjusted = applyHouseholdCashflowToRow(row, cashflow, poolStart);
+      const adjusted = applyHouseholdCashflowToRow(
+        row,
+        cashflow,
+        poolStart,
+        options.householdCashflowContext.portfolioReturnRate,
+      );
       poolCapital = adjusted.capitalEnd;
       return adjusted;
     }
@@ -387,6 +443,7 @@ export function mergeWealthProjections(
 
   if (
     options?.applySurvivorTransfer &&
+    !options?.householdCashflowContext &&
     partnerBirth &&
     options.primaryHorizonAge != null &&
     options.partnerHorizonAge != null
@@ -516,6 +573,19 @@ export function calculateHouseholdPension(
         primaryResult,
         partnerResult,
         householdInflation,
+        {
+          primary: resolveWorkloadReductions(
+            household.primary,
+            primaryOverrides,
+          ),
+          partner: household.partner
+            ? resolveWorkloadReductions(
+                household.partner,
+                partnerOverrides ?? {},
+              )
+            : undefined,
+        },
+        primaryOverrides,
       )
     : undefined;
 
@@ -560,6 +630,7 @@ export function combinedProjectionToFreeAssets(
     capitalInjection: row.capitalInjection,
     bvgCapitalInjection: row.bvgCapitalInjection,
     pillar3aCapitalInjection: row.pillar3aCapitalInjection,
+    inheritanceInjection: row.inheritanceInjection,
     annualGrossExpenses: row.annualGrossExpenses,
     annualPensionOffset: Math.min(
       row.netLivingExpenses ?? row.annualGrossExpenses,

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   ArrowRight,
   Building2,
@@ -9,6 +10,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { resetOnboardingForUser } from "@/app/onboarding/actions";
 import { AuthButton } from "@/components/auth-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { calculateScenarioPension, formatCHF } from "@/lib/engine";
+import { shouldShowOnboarding } from "@/lib/onboarding/wizard-state";
 import { loadProfileForScenario } from "@/lib/profile/load-profile";
 import { isProfileCompleteForScenario } from "@/lib/scenarios/profile";
 import { createClient } from "@/lib/supabase/server";
@@ -88,6 +91,10 @@ export async function HomeContent() {
       .order("updated_at", { ascending: false })
       .limit(5),
   ]);
+
+  if (shouldShowOnboarding(profileRow)) {
+    redirect("/onboarding");
+  }
 
   const profileComplete = isProfileCompleteForScenario(profileRow);
   const scenarioProfile = profileComplete
@@ -182,6 +189,26 @@ export async function HomeContent() {
           </CardContent>
         </Card>
       ) : null}
+
+      <Card className="border-dashed">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Einführung</CardTitle>
+          <CardDescription>
+            Assistent mit Erklärungen zu Sparquote, FI-Alter und Vereinfachungen
+            erneut durchlaufen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/onboarding?replay=1">Einführung wiederholen</Link>
+          </Button>
+          <form action={resetOnboardingForUser}>
+            <Button type="submit" variant="ghost" size="sm">
+              Wizard neu starten (Stammdaten behalten)
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -307,7 +307,8 @@ function CombinedWealthChartInteractive({
           {projection.map((row) => {
             const hasBvg = row.bvgCapitalInjection > 0;
             const has3a = row.pillar3aCapitalInjection > 0;
-            const hasSurvivor = (row.survivorWealthTransfer ?? 0) > 0;
+            const hasSurvivor =
+              showSplit && (row.survivorWealthTransfer ?? 0) > 0;
             if (!hasBvg && !has3a && !hasSurvivor) return null;
             let offset = 0;
             if (hasBvg && has3a) offset = 5;
@@ -385,7 +386,7 @@ function CombinedWealthChartInteractive({
           </p>
           {(hover.bvgCapitalInjection > 0 ||
             hover.pillar3aCapitalInjection > 0 ||
-            (hover.survivorWealthTransfer ?? 0) > 0) && (
+            (showSplit && (hover.survivorWealthTransfer ?? 0) > 0)) && (
             <dl className="mt-2 space-y-1 border-t border-border/60 pt-2">
               {hover.primaryBvgCapitalInjection > 0 ? (
                 <div className="flex justify-between gap-4">
@@ -427,7 +428,7 @@ function CombinedWealthChartInteractive({
                   </dd>
                 </div>
               ) : null}
-              {(hover.survivorWealthTransfer ?? 0) > 0 ? (
+              {showSplit && (hover.survivorWealthTransfer ?? 0) > 0 ? (
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: PARTNER_COLOR }}>
                     Erbschaft P1 → P2

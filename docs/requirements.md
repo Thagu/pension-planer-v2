@@ -172,7 +172,7 @@ Manual effective-rate override columns were **removed** in migration 008; rates 
 | Field | Type | Description |
 |-------|------|-------------|
 | `planning_mode` | `single` \| `couple` | Planning mode |
-| `partner_profile` | jsonb | Mirror of person fields for partner (see `PartnerProfileData`) |
+| `partner_profile` | jsonb | Mirror of person fields for partner (see `PartnerProfileData`); includes optional `employment_end_offset_years` (0 = Arbeitsstopp mit Person 1, >0 = X Jahre später für Haushalts-FI) |
 
 Legacy column `pillar3a_current_capital` may exist but **multi-account table is authoritative**.
 
@@ -222,6 +222,7 @@ Legacy column `pillar3a_current_capital` may exist but **multi-account table is 
 - Each person has own: birth date, gender, salary, BVG, free assets, workload, savings, 3a accounts (`person` column).
 - Shared household: `annual_retirement_expenses`, **inflation rate**, tax domicile, planning horizon, 3a auto-split (applies to both).
 - **Household FI panel** uses combined orchestrator with the same live preview behavior as single mode.
+- **Partner employment offset (FI):** On Person 2 tab, user chooses whether partner stops working together with Person 1 (`employment_end_offset_years = 0`) or X years later. During FI search, partner employment end = P1 trial age + offset (clamped 18–70). Regular scenarios keep partner `retirement_age` unless overridden in the scenario form.
 
 ### 7.3 Workload Reductions
 
@@ -424,7 +425,7 @@ Year-by-year from current age to `planningHorizonAge`:
 
 Returns: `independenceAge`, years until FI, comparison to planned retirement, min capital during retirement, timeline for charting.
 
-Couple mode: searches primary employment end (with partner rules) using household orchestrator; timeline includes `combinedDetail` for per-person tooltips.
+Couple mode: searches primary employment end using household orchestrator. Partner employment end during each FI trial = `derivePartnerEmploymentEndAge(primaryEnd, partner_profile.employment_end_offset_years)` (offset 0 = together). Timeline includes `combinedDetail` for per-person tooltips and household cashflow waterfall.
 
 ### 9.9 Capital Withdrawal Optimizer (`capital-withdrawal-optimizer.ts`)
 

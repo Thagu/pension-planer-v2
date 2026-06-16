@@ -3,6 +3,10 @@
  */
 
 import { DEFAULT_ASSUMPTIONS } from "../constants";
+import {
+  applyWealthYearCashflow,
+  calculatePortfolioInterestFromRate,
+} from "../wealth-cashflow";
 import { annualPensionIncomeAtAge } from "../legal-ages";
 import { formatInflationRatePercent, inflateAmount } from "../inflation";
 import {
@@ -69,6 +73,8 @@ export interface FreeAssetsYearProjection {
   capitalInjection: number;
   bvgCapitalInjection: number;
   pillar3aCapitalInjection: number;
+  /** Erbschaft / Schenkung (Szenario) */
+  inheritanceInjection: number;
   /** Brutto-Ausgaben ab Pensionierung */
   annualGrossExpenses: number;
   /** Davon gedeckt durch AHV/BVG-Rente */
@@ -265,16 +271,18 @@ export function calculateFreeAssetsPension(input: FreeAssetsInput): FreeAssetsRe
     const savings = beforeRetirement
       ? savingsAtWorkload(yearSalary, yearSavingsBase, workload)
       : 0;
-    const interest =
-      capitalStart > 0
-        ? Math.round((capitalStart + savings / 2) * returnRate)
-        : 0;
+    const interest = calculatePortfolioInterestFromRate(
+      capitalStart,
+      savings,
+      returnRate,
+    );
     capital = capitalStart + savings + interest;
 
     const yearOffsetFromRetirement = i - yearsToRetirement;
     let capitalInjection = 0;
     let bvgCapitalInjection = 0;
     let pillar3aCapitalInjection = 0;
+    let inheritanceInjection = 0;
     for (const inj of allInjections) {
       const matches =
         inj.atAge != null
@@ -289,10 +297,17 @@ export function calculateFreeAssetsPension(input: FreeAssetsInput): FreeAssetsRe
         bvgCapitalInjection += inj.amount;
       } else if (inj.source === "pillar3a") {
         pillar3aCapitalInjection += inj.amount;
+      } else if (inj.source === "other") {
+        inheritanceInjection += inj.amount;
       } else if (inj.label?.startsWith("BVG")) {
         bvgCapitalInjection += inj.amount;
       } else if (inj.label?.includes("3a")) {
         pillar3aCapitalInjection += inj.amount;
+      } else if (
+        inj.label?.includes("Erbschaft") ||
+        inj.label?.includes("Schenkung")
+      ) {
+        inheritanceInjection += inj.amount;
       }
     }
     if (capitalInjection > 0) {
@@ -313,7 +328,7 @@ export function calculateFreeAssetsPension(input: FreeAssetsInput): FreeAssetsRe
           bvgPensionStartAge,
         );
     const annualPensionOffset = Math.min(annualGrossExpenses, pensionAtAge);
-    const annualWithdrawal = Math.max(0, annualGrossExpenses - pensionAtAge);
+    const grossWealthWithdrawal = Math.max(0, annualGrossExpenses - pensionAtAge);
     const annualPensionIncome = pensionAtAge;
     const annualTaxableAdditionalIncome =
       capitalInjection + annualPensionIncome;
@@ -331,8 +346,16 @@ export function calculateFreeAssetsPension(input: FreeAssetsInput): FreeAssetsRe
     const annualTotalExpenses = annualGrossExpenses + annualTotalTax;
     cumulativeIncome += annualTotalIncome;
     cumulativeExpenses += annualTotalExpenses;
-    // Defizit akkumulieren (negatives Vermögen), nicht bei 0 stoppen
-    capital = capital - annualWithdrawal - annualTotalTax;
+    // Entnahmen verbrauchen zuerst die Jahresverzinsung, dann das Kapital.
+    const { capitalEnd, withdrawalFromPrincipal } = applyWealthYearCashflow({
+      poolStart: capitalStart,
+      savingsContribution: savings,
+      portfolioInterest: interest,
+      capitalInjection,
+      netWithdrawal: grossWealthWithdrawal,
+      annualTotalTax,
+    });
+    capital = capitalEnd;
 
     projection.push({
       age,
@@ -343,9 +366,10 @@ export function calculateFreeAssetsPension(input: FreeAssetsInput): FreeAssetsRe
       capitalInjection: Math.round(capitalInjection),
       bvgCapitalInjection: Math.round(bvgCapitalInjection),
       pillar3aCapitalInjection: Math.round(pillar3aCapitalInjection),
+      inheritanceInjection: Math.round(inheritanceInjection),
       annualGrossExpenses: Math.round(annualGrossExpenses),
       annualPensionOffset: Math.round(annualPensionOffset),
-      annualWithdrawal: Math.round(annualWithdrawal),
+      annualWithdrawal: Math.round(withdrawalFromPrincipal),
       annualPensionIncome: Math.round(annualPensionIncome),
       annualTotalIncome: Math.round(annualTotalIncome),
       annualTotalExpenses: Math.round(annualTotalExpenses),

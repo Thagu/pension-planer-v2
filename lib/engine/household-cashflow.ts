@@ -1,14 +1,19 @@
 /**
- * Haushalts-Cashflow: Netto-Lebenshaltung, Phasen, Lohn-Offset (Paarmodus)
+ * Haushalts-Cashflow: Netto-Lebenshaltung, Phasen (Paarmodus)
  */
 
 import type { BvgResult } from "./modules/bvg";
 import type { Pillar3aResult } from "./modules/pillar3a";
-import type { ProfileForScenario } from "./orchestrator";
-import { SALARY_NET_ESTIMATE_FACTOR } from "./constants";
+import {
+  rateFromProfileDb,
+  rateFromScenarioOverride,
+  type ProfileForScenario,
+  type ScenarioOverrides,
+} from "./orchestrator";
+import { DEFAULT_ASSUMPTIONS } from "./constants";
 import { inflateAmount } from "./inflation";
 import {
-  workloadFactorAtAge,
+  normalizeWorkloadReductions,
   type WorkloadReduction,
 } from "./workload";
 import type { CombinedWealthYearProjection } from "@/lib/household/types";
@@ -37,13 +42,62 @@ export type HouseholdPersonCashflowInput = {
   currentAge: number;
   bvg: BvgResult;
   pillar3a: Pillar3aResult;
+  /** Aufgelöstes Arbeitspensum (Profil oder Szenario-Override). */
+  workloadReductions: WorkloadReduction[];
 };
+
+export function portfolioReturnRateFromProfile(
+  profile: ProfileForScenario,
+): number {
+  if (profile.freeAssetsInterestRate != null) {
+    return rateFromProfileDb(
+      profile.freeAssetsInterestRate,
+      DEFAULT_ASSUMPTIONS.returnRateFreeAssets,
+    );
+  }
+  return DEFAULT_ASSUMPTIONS.returnRateFreeAssets;
+}
+
+export function blendedPortfolioReturnRate(
+  primary: ProfileForScenario,
+  partner: ProfileForScenario | null,
+  overrides?: Pick<ScenarioOverrides, "freeAssets"> | null,
+): number {
+  if (!partner) return portfolioReturnRateFromProfile(primary);
+  const primaryRate = portfolioReturnRateFromProfile(primary);
+  const partnerRate = portfolioReturnRateFromProfile(partner);
+  const primaryValue =
+    overrides?.freeAssets?.currentValueOverride ?? primary.freeAssets ?? 0;
+  const partnerValue = partner.freeAssets ?? 0;
+  const total = primaryValue + partnerValue;
+  if (total <= 0) return (primaryRate + partnerRate) / 2;
+  return (primaryRate * primaryValue + partnerRate * partnerValue) / total;
+}
+
+/** Profil-Rendite oder Szenario-Override für gepooltes Haushaltsvermögen. */
+export function portfolioReturnRateFromScenario(
+  primary: ProfileForScenario,
+  partner: ProfileForScenario | null,
+  overrides?: Pick<ScenarioOverrides, "freeAssets"> | null,
+): number {
+  const profileBlended = blendedPortfolioReturnRate(primary, partner, overrides);
+  const override = overrides?.freeAssets?.returnRateOverride;
+  if (override != null) {
+    const rate = rateFromScenarioOverride(override);
+    if (rate != null && Math.abs(rate - profileBlended) > 1e-6) {
+      return rate;
+    }
+  }
+  return profileBlended;
+}
 
 export type HouseholdCashflowContext = {
   baseNetLiving: number;
   /** Netto-Lebenshaltung nach Tod des ersten Partners (heutige Kaufkraft) */
   baseSurvivorLiving: number;
   inflationRate: number;
+  /** Gewichtete Rendite für gepooltes freies Vermögen */
+  portfolioReturnRate: number;
   primaryEmploymentEnd: number;
   partnerEmploymentEnd?: number;
   primaryHorizonAge: number;
@@ -153,37 +207,6 @@ function pillar3aContributionAtAge(pillar3a: Pillar3aResult, age: number): numbe
   }, 0);
 }
 
-export function estimateNetEmploymentIncome(
-  salaryBrutto: number,
-  age: number,
-  employmentEndAge: number,
-  currentAge: number,
-  workloadReductions: WorkloadReduction[],
-  inflationRate: number,
-): number {
-  if (salaryBrutto <= 0 || age >= employmentEndAge) return 0;
-
-  const yearIndex = Math.max(0, age - currentAge);
-  const gross = inflateAmount(salaryBrutto, inflationRate, yearIndex);
-  const workload = workloadFactorAtAge(workloadReductions, age);
-  return Math.round(gross * workload * SALARY_NET_ESTIMATE_FACTOR);
-}
-
-function personEmploymentNet(
-  person: HouseholdPersonCashflowInput,
-  age: number,
-  inflationRate: number,
-): number {
-  return estimateNetEmploymentIncome(
-    person.profile.currentSalaryBrutto ?? 0,
-    age,
-    person.employmentEndAge,
-    person.currentAge,
-    person.profile.workloadReductions ?? [],
-    inflationRate,
-  );
-}
-
 function activePersonContributions(
   person: HouseholdPersonCashflowInput,
   age: number,
@@ -240,17 +263,8 @@ export function computeHouseholdYearCashflow(
     },
   );
 
-  let employmentIncomeNet = 0;
   let pillar3aContribution = 0;
   let bvgEmployeeContribution = 0;
-
-  if (phase !== "accumulation" && !primaryRetired && !primaryDeceased) {
-    employmentIncomeNet += personEmploymentNet(
-      ctx.primary,
-      row.primaryAge,
-      ctx.inflationRate,
-    );
-  }
 
   if (!primaryRetired && !primaryDeceased) {
     const c = activePersonContributions(
@@ -260,20 +274,6 @@ export function computeHouseholdYearCashflow(
     );
     pillar3aContribution += c.pillar3a;
     bvgEmployeeContribution += c.bvg;
-  }
-
-  if (
-    phase !== "accumulation" &&
-    ctx.partner &&
-    row.partnerAge != null &&
-    !partnerRetired &&
-    !partnerDeceased
-  ) {
-    employmentIncomeNet += personEmploymentNet(
-      ctx.partner,
-      row.partnerAge,
-      ctx.inflationRate,
-    );
   }
 
   if (
@@ -292,15 +292,12 @@ export function computeHouseholdYearCashflow(
   }
 
   const grossCashNeed = netLiving + retirementTax;
-  const netWithdrawal = Math.max(
-    0,
-    grossCashNeed - pensionIncome - employmentIncomeNet,
-  );
+  const netWithdrawal = Math.max(0, grossCashNeed - pensionIncome);
 
   return {
     phase,
     netLiving,
-    employmentIncomeNet,
+    employmentIncomeNet: 0,
     pensionIncome,
     pillar3aContribution,
     bvgEmployeeContribution,
@@ -337,6 +334,11 @@ export function buildHouseholdCashflowContext(
     pillar3a: Pillar3aResult;
   } | null,
   inflationRate: number,
+  resolvedWorkloads?: {
+    primary: WorkloadReduction[];
+    partner?: WorkloadReduction[];
+  },
+  overrides?: Pick<ScenarioOverrides, "freeAssets"> | null,
 ): HouseholdCashflowContext {
   const primaryHorizonAge = household.primary.planningHorizonAge ?? 95;
   const partnerHorizonAge =
@@ -346,6 +348,11 @@ export function buildHouseholdCashflowContext(
     baseNetLiving: household.primary.annualRetirementExpenses ?? 0,
     baseSurvivorLiving: household.primary.annualSurvivorExpenses ?? 0,
     inflationRate,
+    portfolioReturnRate: portfolioReturnRateFromScenario(
+      household.primary,
+      household.partner,
+      overrides,
+    ),
     primaryEmploymentEnd: primaryResult.summary.employmentEndAge,
     partnerEmploymentEnd: partnerResult?.summary.employmentEndAge,
     primaryHorizonAge,
@@ -356,6 +363,9 @@ export function buildHouseholdCashflowContext(
       currentAge: currentAgeFromBirthDate(household.primary.birthDate),
       bvg: primaryResult.bvg,
       pillar3a: primaryResult.pillar3a,
+      workloadReductions:
+        resolvedWorkloads?.primary ??
+        normalizeWorkloadReductions(household.primary.workloadReductions),
     },
     partner:
       household.partner && partnerResult
@@ -365,6 +375,9 @@ export function buildHouseholdCashflowContext(
             currentAge: currentAgeFromBirthDate(household.partner.birthDate),
             bvg: partnerResult.bvg,
             pillar3a: partnerResult.pillar3a,
+            workloadReductions:
+              resolvedWorkloads?.partner ??
+              normalizeWorkloadReductions(household.partner.workloadReductions),
           }
         : undefined,
   };

@@ -21,15 +21,7 @@ import {
   getPillar3aLatestWithdrawalAge,
   pillar3aWithdrawalOffsetBounds,
 } from "./legal-ages";
-
-function formatChf(amount: number): string {
-  return new Intl.NumberFormat("de-CH", {
-    style: "currency",
-    currency: "CHF",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+import { formatCHF } from "@/lib/format/numbers";
 
 export type CapitalWithdrawalOptimizationSuggestion = {
   bvgCapitalWithdrawalPercent: number;
@@ -231,8 +223,8 @@ function buildExplanation(params: {
   if (Math.abs(monthlyDelta) >= 1) {
     bullets.push(
       monthlyDelta > 0
-        ? `Die BVG-Rente steigt um ca. ${formatChf(monthlyDelta)}/Monat.`
-        : `Die BVG-Rente sinkt um ca. ${formatChf(Math.abs(monthlyDelta))}/Monat — dafür weniger Einmalsteuer.`,
+        ? `Die BVG-Rente steigt um ca. ${formatCHF(monthlyDelta)}/Monat.`
+        : `Die BVG-Rente sinkt um ca. ${formatCHF(Math.abs(monthlyDelta))}/Monat — dafür weniger Einmalsteuer.`,
     );
   }
 
@@ -242,7 +234,7 @@ function buildExplanation(params: {
     );
   }
 
-  const summaryText = `Durch eine andere Aufteilung zwischen Kapitalbezug und Rente sowie gestaffelte 3a-Bezüge können Sie voraussichtlich ${formatChf(params.taxSavings)} Steuern auf Kapitalleistungen und Renten sparen.`;
+  const summaryText = `Durch eine andere Aufteilung zwischen Kapitalbezug und Rente sowie gestaffelte 3a-Bezüge können Sie voraussichtlich ${formatCHF(params.taxSavings)} Steuern auf Kapitalleistungen und Renten sparen.`;
 
   return { summaryText, explanation: bullets };
 }

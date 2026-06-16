@@ -15,8 +15,14 @@ import {
   combinedProjectionToFreeAssets,
   type HouseholdPensionResult,
 } from "./household-orchestrator";
+import {
+  derivePartnerEmploymentEndAge,
+  derivePartnerEmploymentEndAgeForFi,
+} from "@/lib/household/partner-profile";
 import type { HouseholdProfileForScenario } from "@/lib/household/types";
 import type { CombinedWealthYearProjection } from "@/lib/household/types";
+import { formatCHF, formatSwissNumber } from "@/lib/format/numbers";
+import type { ScenarioOverrides } from "./orchestrator";
 
 function calculateAge(birthDate: string): number {
   const birth = new Date(birthDate);
@@ -168,15 +174,6 @@ function evaluateRetirement(
   };
 }
 
-function formatChf(amount: number): string {
-  return new Intl.NumberFormat("de-CH", {
-    style: "currency",
-    currency: "CHF",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
 export function calculateFinancialIndependence(
   profile: ProfileForScenario,
 ): FinancialIndependenceResult {
@@ -254,9 +251,9 @@ export function calculateFinancialIndependence(
     bestAge < profileRetirementAge ? profileRetirementAge - bestAge : null;
 
   const explanation: string[] = [
-    `Erwerbsaufgabe ab Alter ${bestAge}: Ausgaben (CHF ${formatChf(profile.annualRetirementExpenses ?? 0)}/J.) inkl. Steuern werden durch Renten (AHV/BVG) und freies Vermögen gedeckt.`,
-    `Projektion bis Alter ${planningHorizonAge}: tiefster Vermögensstand CHF ${formatChf(bestMetrics.minCapital)}, Endvermögen CHF ${formatChf(bestMetrics.endCapital)}.`,
-    `Monatliches Gesamteinkommen am Planungshorizont: ca. ${formatChf(bestMetrics.monthlyIncomeAtHorizon)}/Mt. (AHV, BVG, ggf. Entnahmen).`,
+    `Erwerbsaufgabe ab Alter ${bestAge}: Ausgaben (CHF ${formatSwissNumber(profile.annualRetirementExpenses ?? 0, true)}/J.) inkl. Steuern werden durch Renten (AHV/BVG) und freies Vermögen gedeckt.`,
+    `Projektion bis Alter ${planningHorizonAge}: tiefster Vermögensstand CHF ${formatSwissNumber(bestMetrics.minCapital, true)}, Endvermögen CHF ${formatSwissNumber(bestMetrics.endCapital, true)}.`,
+    `Monatliches Gesamteinkommen am Planungshorizont: ca. ${formatCHF(bestMetrics.monthlyIncomeAtHorizon)}/Mt. (AHV, BVG, ggf. Entnahmen).`,
     "Annahmen: 100 % BVG-Verrentung (kein Kapitalbezug), Standard-3a-Bezugsplan, Profilwerte für Renditen und Steuern. Das freie Vermögen darf bis zum Planungshorizont nicht aufgebraucht sein.",
   ];
 
@@ -356,6 +353,37 @@ function householdProjectionEndYear(
   return Math.max(primaryEnd, partnerEnd);
 }
 
+/**
+ * Partner-Erwerbsende für Haushalts-FI: P1-Erwerbsende + Offset aus partner_profile.
+ * Nur im FI-Suchpfad; reguläre Szenarien nutzen weiterhin partner.retirement_age bzw. Szenario-Overrides.
+ */
+function partnerOverridesForHouseholdFi(
+  household: HouseholdProfileForScenario,
+  primaryEmploymentEndAge: number,
+): ScenarioOverrides["partner"] | undefined {
+  if (household.planningMode !== "couple" || !household.partner) return undefined;
+
+  const partnerEnd =
+    household.primary.birthDate && household.partner.birthDate
+      ? derivePartnerEmploymentEndAgeForFi(
+          household.primary.birthDate,
+          household.partner.birthDate,
+          primaryEmploymentEndAge,
+          household.partnerEmploymentEndOffsetYears,
+        )
+      : derivePartnerEmploymentEndAge(
+          primaryEmploymentEndAge,
+          household.partnerEmploymentEndOffsetYears,
+        );
+
+  return {
+    ahv: {
+      employmentEndAgeOverride: partnerEnd,
+      retirementAgeOverride: partnerEnd,
+    },
+  };
+}
+
 function evaluateHouseholdRetirement(
   household: HouseholdProfileForScenario,
   primaryEmploymentEndAge: number,
@@ -372,6 +400,7 @@ function evaluateHouseholdRetirement(
       employmentEndAgeOverride: primaryEmploymentEndAge,
       retirementAgeOverride: primaryEmploymentEndAge,
     },
+    partner: partnerOverridesForHouseholdFi(household, primaryEmploymentEndAge),
   });
 
   const projection = householdResult.combinedProjection;
@@ -504,15 +533,15 @@ export function calculateHouseholdFinancialIndependence(
     bestAge < profileRetirementAge ? profileRetirementAge - bestAge : null;
 
   const explanation: string[] = [
-    `Erwerbsaufgabe Person 1 ab Alter ${bestAge}: Netto-Lebenshaltung (CHF ${formatChf(household.primary.annualRetirementExpenses ?? 0)}/J., heutige Kaufkraft) startet ab dem ersten Haushalts-Ruhestand mit Teuerung. In der Mischphase mindert der geschätzte Netto-Lohn des Partners die Entnahme; Steuern und Vorsorge laufen separat.`,
-    `Projektion bis Alter ${planningHorizonAge}: tiefster Haushaltsvermögensstand CHF ${formatChf(bestMetrics.minCapital)} (muss > 0 bleiben — ein hoher Tiefstand bedeutet grossen Puffer, nicht fehlende FI). Endvermögen CHF ${formatChf(bestMetrics.endCapital)}.`,
-    `Monatliches Haushaltseinkommen am Planungshorizont: ca. ${formatChf(bestMetrics.monthlyIncomeAtHorizon)}/Mt.`,
+    `Erwerbsaufgabe Person 1 ab Alter ${bestAge}: Netto-Lebenshaltung (CHF ${formatSwissNumber(household.primary.annualRetirementExpenses ?? 0, true)}/J., heutige Kaufkraft) startet ab dem ersten Haushalts-Ruhestand mit Teuerung. In der Mischphase mindert der geschätzte Netto-Lohn des Partners die Entnahme; Steuern und Vorsorge laufen separat.`,
+    `Projektion bis Alter ${planningHorizonAge}: tiefster Haushaltsvermögensstand CHF ${formatSwissNumber(bestMetrics.minCapital, true)} (muss > 0 bleiben — ein hoher Tiefstand bedeutet grossen Puffer, nicht fehlende FI). Endvermögen CHF ${formatSwissNumber(bestMetrics.endCapital, true)}.`,
+    `Monatliches Haushaltseinkommen am Planungshorizont: ca. ${formatCHF(bestMetrics.monthlyIncomeAtHorizon)}/Mt.`,
     "Annahmen: separate AHV/BVG/3a pro Person, 100 % BVG-Verrentung, Standard-3a-Bezugsplan. Kleine Renditeänderungen können bei aktivem 3a-Auto-Split zusätzliche Konten auslösen.",
   ];
 
   if (bestMetrics.householdResult.ahvCouplePlafonierungApplied) {
     explanation.push(
-      `AHV-Plafonierung (Ehepaar): Summe der individuellen Renten auf max. CHF ${formatChf(bestMetrics.householdResult.ahvCoupleCapYearly ?? 0)}/J. (150 % Maximalrente) gekürzt.`,
+      `AHV-Plafonierung (Ehepaar): Summe der individuellen Renten auf max. CHF ${formatSwissNumber(bestMetrics.householdResult.ahvCoupleCapYearly ?? 0, true)}/J. (150 % Maximalrente) gekürzt.`,
     );
   }
 

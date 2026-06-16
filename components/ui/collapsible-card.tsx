@@ -73,7 +73,7 @@ export function CollapsibleCard({
           />
         </div>
       </CardHeader>
-      {open ? <CardContent>{children}</CardContent> : null}
+      <CardContent className={cn(!open && "hidden")}>{children}</CardContent>
     </Card>
   );
 }

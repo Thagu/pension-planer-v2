@@ -88,7 +88,7 @@ export function FinancialIndependencePanel({
 
           <div className="grid gap-2 sm:grid-cols-2">
             <Metric
-              label="FI-Alter"
+              label={isCouple ? "FI-Alter Person 1" : "FI-Alter"}
               value={`${result.independenceAge} Jahre`}
               highlight
             />
@@ -101,7 +101,11 @@ export function FinancialIndependencePanel({
               }
             />
             <Metric
-              label="Geplante Pension"
+              label={
+                isCouple
+                  ? "Geplante Pension Person 1"
+                  : "Geplante Pension"
+              }
               value={`${result.profileRetirementAge} J.`}
               detail={
                 result.yearsEarlierThanPlanned
@@ -110,7 +114,11 @@ export function FinancialIndependencePanel({
               }
             />
             <Metric
-              label={`Endvermögen (${result.planningHorizonAge} J.)`}
+              label={
+                isCouple
+                  ? `Endvermögen P1-Horizont (${result.planningHorizonAge} J.)`
+                  : `Endvermögen (${result.planningHorizonAge} J.)`
+              }
               value={formatCHF(result.endCapitalAtHorizon)}
             />
             <Metric

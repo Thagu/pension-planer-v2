@@ -104,7 +104,10 @@ export function ScenarioPersonPanel({
             person === "partner" ? "partnerWorkloadReduction" : "workloadReduction"
           }
           reductions={workloadReductions}
-          onChange={onWorkloadReductions}
+          onChange={(next) => {
+            onUseWorkloadOverride(true);
+            onWorkloadReductions(next);
+          }}
         />
       </ScenarioOverrideRow>
     </div>

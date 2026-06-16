@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCHF, NET_SALARY_ESTIMATE_FACTOR } from "@/lib/engine";
+import { formatCHF } from "@/lib/engine";
 import {
   cashflowPhaseLabel,
   type HouseholdCashflowPhase,
@@ -41,7 +41,8 @@ export type SimpleCashflowBreakdown = {
   netLiving: number;
   retirementTax: number;
   pensionIncome: number;
-  employmentIncomeNet?: number;
+  /** Verzinsung des Portfolios — mindert Entnahme vor Kapitalverzehr. */
+  portfolioInterest?: number;
   netWithdrawal: number;
   cashflowPhase?: HouseholdCashflowPhase;
 };
@@ -59,7 +60,7 @@ export function cashflowFromCombinedRow(
     netLiving,
     retirementTax,
     pensionIncome: row.annualPensionIncome,
-    employmentIncomeNet: row.employmentIncomeNet,
+    portfolioInterest: row.interest > 0 ? row.interest : undefined,
     netWithdrawal: row.annualWithdrawal,
     cashflowPhase: row.cashflowPhase,
   };
@@ -71,6 +72,7 @@ export function cashflowFromFreeAssetsRow(
     annualTotalTax: number;
     annualPensionIncome: number;
     annualWithdrawal: number;
+    interest?: number;
   },
   inRetirement: boolean,
 ): SimpleCashflowBreakdown | null {
@@ -79,6 +81,8 @@ export function cashflowFromFreeAssetsRow(
     netLiving: point.annualGrossExpenses,
     retirementTax: point.annualTotalTax,
     pensionIncome: point.annualPensionIncome,
+    portfolioInterest:
+      (point.interest ?? 0) > 0 ? point.interest : undefined,
     netWithdrawal: point.annualWithdrawal,
     cashflowPhase: "full_retirement",
   };
@@ -131,21 +135,21 @@ export function HouseholdCashflowBreakdown({
           color={PENSION_LINE_COLOR}
         />
       ) : null}
-      {(cashflow.employmentIncomeNet ?? 0) > 0 ? (
+      {(cashflow.portfolioInterest ?? 0) > 0 ? (
         <TooltipRow
-          label={`− Lohn (geschätzt ${Math.round(NET_SALARY_ESTIMATE_FACTOR * 100)} % netto)`}
-          value={`+${formatCHF(cashflow.employmentIncomeNet!)}`}
+          label="− Verzinsung (Portfolio)"
+          value={`+${formatCHF(cashflow.portfolioInterest!)}`}
           tone="positive"
         />
       ) : null}
       {cashflow.netWithdrawal > 0 ? (
         <TooltipRow
-          label="= Entnahme Vermögen"
+          label="= Entnahme aus Kapital"
           value={`−${formatCHF(cashflow.netWithdrawal)}`}
           tone="negative"
         />
       ) : (
-        <TooltipRow label="= Entnahme Vermögen" value={formatCHF(0)} tone="muted" />
+        <TooltipRow label="= Entnahme aus Kapital" value={formatCHF(0)} tone="muted" />
       )}
     </>
   );

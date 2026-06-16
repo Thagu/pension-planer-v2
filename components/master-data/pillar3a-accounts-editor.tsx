@@ -54,18 +54,22 @@ export function Pillar3aAccountsEditor({
   );
 
   useEffect(() => {
-    onAccountsChange?.();
     if (typeof document === "undefined") return;
     const hidden = document.querySelector<HTMLInputElement>(
       `input[name="${CSS.escape(formFieldName)}"]`,
     );
     hidden?.dispatchEvent(new Event("input", { bubbles: true }));
-  }, [items, formFieldName, onAccountsChange]);
+  }, [items, formFieldName]);
+
+  const notifyAccountsChange = () => {
+    onAccountsChange?.();
+  };
 
   const updateItem = (id: string, patch: Partial<Pillar3aAccountDraft>) => {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
+    notifyAccountsChange();
   };
 
   const updateChf = (
@@ -86,6 +90,7 @@ export function Pillar3aAccountsEditor({
         prev.map((a) => a.annualContribution),
       ),
     ]);
+    notifyAccountsChange();
   };
 
   const applyMaxSuggestion = (id: string) => {
@@ -99,6 +104,7 @@ export function Pillar3aAccountsEditor({
 
   const removeAccount = (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
+    notifyAccountsChange();
   };
 
   return (

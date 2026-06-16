@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { CopyScenarioForm } from "@/components/scenarios/copy-scenario-form";
 import { calculateScenarioPension, formatCHF } from "@/lib/engine";
 import { loadProfileForScenario } from "@/lib/profile/load-profile";
 import { createClient } from "@/lib/supabase/server";
@@ -69,10 +70,13 @@ export async function ScenariosContent() {
           {scenarios.map((s) => {
             const monthly = monthlyByScenario.get(s.id);
             return (
-              <Link key={s.id} href={`/scenarios/${s.id}`}>
-                <Card className="transition-colors hover:border-primary/40">
-                  <CardHeader className="py-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+              <Card
+                key={s.id}
+                className="transition-colors hover:border-primary/40"
+              >
+                <CardHeader className="py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <Link href={`/scenarios/${s.id}`} className="min-w-0 flex-1">
                       <div className="space-y-1">
                         <CardTitle className="text-lg">{s.name}</CardTitle>
                         <CardDescription>
@@ -84,23 +88,28 @@ export async function ScenariosContent() {
                           {new Date(s.updated_at).toLocaleDateString("de-CH")}
                         </CardDescription>
                       </div>
-                      {monthly != null ? (
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground">
-                            Monatliche Rente
-                          </p>
-                          <p className="font-mono text-lg font-semibold text-primary">
-                            {formatCHF(monthly)}
-                            <span className="text-sm font-normal text-muted-foreground">
-                              /Mt.
-                            </span>
-                          </p>
-                        </div>
-                      ) : null}
-                    </div>
-                  </CardHeader>
-                </Card>
-              </Link>
+                    </Link>
+                    {monthly != null ? (
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">
+                          Monatliche Rente
+                        </p>
+                        <p className="font-mono text-lg font-semibold text-primary">
+                          {formatCHF(monthly)}
+                          <span className="text-sm font-normal text-muted-foreground">
+                            /Mt.
+                          </span>
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                  <CopyScenarioForm
+                    sourceId={s.id}
+                    defaultName={s.name}
+                    compact
+                  />
+                </CardHeader>
+              </Card>
             );
           })}
         </div>

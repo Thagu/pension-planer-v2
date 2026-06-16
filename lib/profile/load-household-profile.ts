@@ -79,5 +79,11 @@ export async function loadHouseholdProfileForScenario(
         })
       : null;
 
-  return { planningMode, primary, partner };
+  return {
+    planningMode,
+    primary,
+    partner,
+    partnerEmploymentEndOffsetYears:
+      partnerData?.employment_end_offset_years ?? 0,
+  };
 }

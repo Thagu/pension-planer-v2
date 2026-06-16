@@ -21,12 +21,19 @@ export type PartnerProfileData = {
   free_assets_interest_rate?: number | null;
   annual_savings_to_free_assets?: number | null;
   workload_reductions?: WorkloadReduction[] | null;
+  /** Jahre nach Erwerbsende Person 1 (0 = zusammen; nur FI/Haushalt-Paar). */
+  employment_end_offset_years?: number | null;
 };
 
 export type HouseholdProfileForScenario = {
   planningMode: PlanningMode;
   primary: ProfileForScenario;
   partner: ProfileForScenario | null;
+  /**
+   * Partner-Arbeitsstopp relativ zu Person 1 (FI/Haushalt-Paar).
+   * 0 = zusammen mit P1-Erwerbsende; positiv = X Jahre später (geclamped 18–70).
+   */
+  partnerEmploymentEndOffsetYears?: number;
 };
 
 export type InheritanceEvent = {

@@ -100,7 +100,6 @@ export {
   computeHouseholdYearCashflow,
   computeInflatedNetLiving,
   computeNetLivingExpenses,
-  estimateNetEmploymentIncome,
   yearsSinceHouseholdExpenseStart,
   cashflowPhaseLabel,
   type HouseholdYearCashflow,
@@ -168,15 +167,7 @@ export {
   formatInflationRatePercent,
 } from "./inflation";
 
-export function formatCHF(amount: number | null | undefined): string {
-  const value = amount ?? 0;
-  return new Intl.NumberFormat("de-CH", {
-    style: "currency",
-    currency: "CHF",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+export { formatCHF } from "@/lib/format/numbers";
 
 export function calculateAge(
   birthDate: string,

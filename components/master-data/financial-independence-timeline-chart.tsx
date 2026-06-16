@@ -18,15 +18,21 @@ import {
 } from "@/components/charts/household-cashflow-tooltip";
 import type { CombinedWealthYearProjection } from "@/lib/household/types";
 import { personLabel, PERSON1_COLOR, PERSON2_COLOR } from "@/lib/household/person-colors";
+import { resolveStableAxisMax } from "@/lib/charts/stable-domain";
+import {
+  hasCapitalInjectionMarker,
+  injectionMarkerXOffsets,
+} from "@/lib/charts/injection-markers";
 import { formatCHF, type FinancialIndependenceTimeline } from "@/lib/engine";
 import type { FreeAssetsYearProjection } from "@/lib/engine";
 
 const WIDTH = 640;
 const HEIGHT = 280;
-const PAD = { top: 36, right: 52, bottom: 40, left: 64 };
+const PAD = { top: 36, right: 52, bottom: 48, left: 64 };
 
 const BVG_INJECTION_COLOR = "hsl(var(--chart-2))";
 const PILLAR3A_INJECTION_COLOR = "hsl(var(--chart-4))";
+const INHERITANCE_INJECTION_COLOR = "hsl(217 70% 55%)";
 const PENSION_LINE_COLOR = "hsl(var(--chart-5))";
 const EXPENSE_LINE_COLOR = "hsl(var(--chart-1))";
 const WITHDRAWAL_LINE_COLOR = "hsl(var(--chart-3))";
@@ -49,8 +55,28 @@ function findDepletionAge(
   return null;
 }
 
+function primaryAgeWhenPartnerReaches(
+  combinedDetail: CombinedWealthYearProjection[] | undefined,
+  partnerAgeThreshold: number,
+): number | null {
+  const row = combinedDetail?.find(
+    (entry) =>
+      entry.partnerAge != null && entry.partnerAge >= partnerAgeThreshold,
+  );
+  return row?.primaryAge ?? null;
+}
+
+function partnerAgeAtPrimaryAge(
+  combinedDetail: CombinedWealthYearProjection[] | undefined,
+  primaryAge: number,
+): number | null {
+  const row = combinedDetail?.find((entry) => entry.primaryAge === primaryAge);
+  return row?.partnerAge ?? null;
+}
+
 type Milestone = {
-  age: number;
+  /** X-position: always Person-1 age (calendar events mapped via combinedDetail). */
+  xAge: number;
   label: string;
   colorClass: string;
   dash?: string;
@@ -94,8 +120,15 @@ export function FinancialIndependenceTimelineChart({
 
   const milestones: Milestone[] = [
     {
-      age: employmentEndAge,
-      label: independenceAge != null ? `FI (${employmentEndAge} J.)` : `Erwerbsende (${employmentEndAge} J.)`,
+      xAge: employmentEndAge,
+      label:
+        independenceAge != null
+          ? householdMode
+            ? `FI P1 (${employmentEndAge} J.)`
+            : `FI (${employmentEndAge} J.)`
+          : householdMode
+            ? `Erwerbsende P1 (${employmentEndAge} J.)`
+            : `Erwerbsende (${employmentEndAge} J.)`,
       colorClass: "stroke-primary",
       dash: "4 3",
     },
@@ -106,8 +139,10 @@ export function FinancialIndependenceTimelineChart({
     profileRetirementAge !== employmentEndAge
   ) {
     milestones.push({
-      age: profileRetirementAge,
-      label: `Geplant (${profileRetirementAge} J.)`,
+      xAge: profileRetirementAge,
+      label: householdMode
+        ? `Geplant P1 (${profileRetirementAge} J.)`
+        : `Geplant (${profileRetirementAge} J.)`,
       colorClass: "stroke-muted-foreground/50",
       dash: "2 4",
     });
@@ -115,8 +150,10 @@ export function FinancialIndependenceTimelineChart({
 
   if (bvgPensionStartAge > employmentEndAge) {
     milestones.push({
-      age: bvgPensionStartAge,
-      label: `BVG (${bvgPensionStartAge} J.)`,
+      xAge: bvgPensionStartAge,
+      label: householdMode
+        ? `BVG P1 (${bvgPensionStartAge} J.)`
+        : `BVG (${bvgPensionStartAge} J.)`,
       colorClass: "stroke-[hsl(var(--chart-2))]",
       dash: "3 3",
     });
@@ -124,8 +161,10 @@ export function FinancialIndependenceTimelineChart({
 
   if (ahvPensionStartAge > employmentEndAge) {
     milestones.push({
-      age: ahvPensionStartAge,
-      label: `AHV (${ahvPensionStartAge} J.)`,
+      xAge: ahvPensionStartAge,
+      label: householdMode
+        ? `AHV P1 (${ahvPensionStartAge} J.)`
+        : `AHV (${ahvPensionStartAge} J.)`,
       colorClass: "stroke-[hsl(var(--chart-5))]",
       dash: "3 3",
     });
@@ -133,7 +172,7 @@ export function FinancialIndependenceTimelineChart({
 
   if (depletionAge != null) {
     milestones.push({
-      age: depletionAge,
+      xAge: depletionAge,
       label: `Leer (${depletionAge} J.)`,
       colorClass: "stroke-destructive",
       dash: "2 2",
@@ -143,51 +182,70 @@ export function FinancialIndependenceTimelineChart({
   if (
     planningHorizonAge != null &&
     planningHorizonAge > employmentEndAge &&
-    !milestones.some((m) => m.age === planningHorizonAge)
+    !milestones.some((m) => m.xAge === planningHorizonAge)
   ) {
     milestones.push({
-      age: planningHorizonAge,
-      label: `Horizont (${planningHorizonAge} J.)`,
+      xAge: planningHorizonAge,
+      label: householdMode
+        ? `Horizont P1 (${planningHorizonAge} J.)`
+        : `Horizont (${planningHorizonAge} J.)`,
       colorClass: "stroke-muted-foreground/30",
       dash: "2 6",
     });
   }
 
-  if (householdMode && partnerEmploymentEndAge != null) {
+  if (householdMode && partnerEmploymentEndAge != null && combinedDetail) {
+    const partnerStopPrimaryAge = primaryAgeWhenPartnerReaches(
+      combinedDetail,
+      partnerEmploymentEndAge,
+    );
     if (
-      partnerEmploymentEndAge !== employmentEndAge &&
-      !milestones.some((m) => m.age === partnerEmploymentEndAge)
+      partnerStopPrimaryAge != null &&
+      partnerStopPrimaryAge !== employmentEndAge &&
+      !milestones.some((m) => m.xAge === partnerStopPrimaryAge)
     ) {
       milestones.push({
-        age: partnerEmploymentEndAge,
+        xAge: partnerStopPrimaryAge,
         label: `P2 Erwerbsende (${partnerEmploymentEndAge} J.)`,
         colorClass: "stroke-violet-500/70",
         dash: "4 3",
       });
     }
-    if (
-      partnerAhvPensionStartAge != null &&
-      partnerAhvPensionStartAge > employmentEndAge &&
-      !milestones.some((m) => m.age === partnerAhvPensionStartAge)
-    ) {
-      milestones.push({
-        age: partnerAhvPensionStartAge,
-        label: `P2 AHV (${partnerAhvPensionStartAge} J.)`,
-        colorClass: "stroke-violet-500/50",
-        dash: "3 3",
-      });
+    if (partnerAhvPensionStartAge != null) {
+      const xAge = primaryAgeWhenPartnerReaches(
+        combinedDetail,
+        partnerAhvPensionStartAge,
+      );
+      if (
+        xAge != null &&
+        xAge > employmentEndAge &&
+        !milestones.some((m) => m.xAge === xAge)
+      ) {
+        milestones.push({
+          xAge,
+          label: `P2 AHV (${partnerAhvPensionStartAge} J.)`,
+          colorClass: "stroke-violet-500/50",
+          dash: "3 3",
+        });
+      }
     }
-    if (
-      partnerBvgPensionStartAge != null &&
-      partnerBvgPensionStartAge > employmentEndAge &&
-      !milestones.some((m) => m.age === partnerBvgPensionStartAge)
-    ) {
-      milestones.push({
-        age: partnerBvgPensionStartAge,
-        label: `P2 BVG (${partnerBvgPensionStartAge} J.)`,
-        colorClass: "stroke-violet-500/40",
-        dash: "3 3",
-      });
+    if (partnerBvgPensionStartAge != null) {
+      const xAge = primaryAgeWhenPartnerReaches(
+        combinedDetail,
+        partnerBvgPensionStartAge,
+      );
+      if (
+        xAge != null &&
+        xAge > employmentEndAge &&
+        !milestones.some((m) => m.xAge === xAge)
+      ) {
+        milestones.push({
+          xAge,
+          label: `P2 BVG (${partnerBvgPensionStartAge} J.)`,
+          colorClass: "stroke-violet-500/40",
+          dash: "3 3",
+        });
+      }
     }
   }
 
@@ -236,10 +294,12 @@ function YearTooltip({
   point,
   employmentEndAge,
   combinedRow,
+  householdMode,
 }: {
   point: FreeAssetsYearProjection;
   employmentEndAge: number;
   combinedRow?: CombinedWealthYearProjection;
+  householdMode?: boolean;
 }) {
   const capitalDelta = point.capitalEnd - point.capitalStart;
   const phase =
@@ -254,11 +314,14 @@ function YearTooltip({
       ? cashflowFromCombinedRow(combinedRow)
       : cashflowFromFreeAssetsRow(point, point.age >= employmentEndAge);
 
+  const ageHeading =
+    householdMode && combinedRow?.partnerAge != null
+      ? `${personLabel("primary")} ${point.age} J. · ${personLabel("partner")} ${combinedRow.partnerAge} J. · ${point.year}`
+      : `Alter ${point.age} · ${point.year}`;
+
   return (
     <>
-      <p className="font-medium text-foreground">
-        Alter {point.age} · {point.year}
-      </p>
+      <p className="font-medium text-foreground">{ageHeading}</p>
       <p className="text-[10px] text-muted-foreground">{phase}</p>
 
       <dl className="mt-2 space-y-1 text-muted-foreground">
@@ -345,7 +408,15 @@ function YearTooltip({
                 />
               )
             ) : null}
-            {(combinedRow?.survivorWealthTransfer ?? 0) > 0 ? (
+            {(point.inheritanceInjection ?? 0) > 0 ? (
+              <TooltipRow
+                label="Erbschaft / Schenkung"
+                value={`+${formatCHF(point.inheritanceInjection)}`}
+                tone="positive"
+                color={INHERITANCE_INJECTION_COLOR}
+              />
+            ) : null}
+            {!householdMode && (combinedRow?.survivorWealthTransfer ?? 0) > 0 ? (
               <TooltipRow
                 label={`Erbschaft ${personLabel("primary")} → ${personLabel("partner")}`}
                 value={`+${formatCHF(combinedRow!.survivorWealthTransfer ?? 0)}`}
@@ -405,6 +476,7 @@ function FinancialIndependenceTimelineChartInner({
   combinedDetail?: CombinedWealthYearProjection[];
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const capitalAxisMaxRef = useRef<number | null>(null);
   const [hovered, setHovered] = useState<FreeAssetsYearProjection | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const { hidden, toggle, isVisible } = useChartSeriesVisibility();
@@ -419,11 +491,16 @@ function FinancialIndependenceTimelineChartInner({
     PAD.left + ((age - minAge) / Math.max(maxAge - minAge, 1)) * innerW;
 
   const minCapital = Math.min(0, ...projection.map((p) => p.capitalEnd));
-  const maxCapital = Math.max(
+  const dataMaxCapital = Math.max(
     ...projection.map((p) => p.capitalEnd),
     1,
   );
-  const capitalRange = maxCapital - minCapital;
+  const maxCapitalAxis = resolveStableAxisMax(
+    dataMaxCapital,
+    capitalAxisMaxRef.current,
+  );
+  capitalAxisMaxRef.current = maxCapitalAxis;
+  const capitalRange = maxCapitalAxis - minCapital;
   const postEmploymentYears = projection.filter((p) => p.age >= employmentEndAge);
   const maxAnnualFlow = Math.max(
     ...postEmploymentYears.map((p) =>
@@ -535,19 +612,18 @@ function FinancialIndependenceTimelineChartInner({
   };
 
   const milestoneLabelOffsets = new Map<number, number>();
-  const sortedMilestones = [...milestones].sort((a, b) => a.age - b.age);
+  const sortedMilestones = [...milestones].sort((a, b) => a.xAge - b.xAge);
   sortedMilestones.forEach((m, i) => {
-    milestoneLabelOffsets.set(m.age, (i % 3) * 14);
+    milestoneLabelOffsets.set(m.xAge, (i % 3) * 14);
   });
+
+  const chartSubtitle = householdMode
+    ? "X-Achse: Alter Person 1; darunter Person 2 am selben Kalenderjahr. Netto-Lebenshaltung startet ab dem ersten Haushalts-Ruhestand (mit Teuerung); in der Mischphase mindert der Lohn des noch erwerbstätigen Partners die Entnahme."
+    : "Vermögensverlauf und jährliche Cashflows. Netto-Lebenshaltung startet ab Erwerbsaufgabe (mit Teuerung). Vertikale Linien markieren Erwerbsaufgabe, Rentenbeginn und ggf. Vermögenserschöpfung.";
 
   return (
     <div className="relative space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Vermögensverlauf und jährliche Cashflows. Netto-Lebenshaltung startet ab
-        dem ersten Haushalts-Ruhestand (mit Teuerung); in der Mischphase mindert
-        der Lohn des noch erwerbstätigen Partners die Entnahme. Vertikale Linien
-        markieren Erwerbsaufgabe, Rentenbeginn und ggf. Vermögenserschöpfung.
-      </p>
+      <p className="text-xs text-muted-foreground">{chartSubtitle}</p>
 
       {!sustainable && depletionAge != null ? (
         <p className="text-xs text-destructive">
@@ -630,19 +706,19 @@ function FinancialIndependenceTimelineChartInner({
         </text>
 
         {milestones.map((m) => (
-          <g key={`${m.label}-${m.age}`}>
+          <g key={`${m.label}-${m.xAge}`}>
             <line
-              x1={x(m.age)}
+              x1={x(m.xAge)}
               y1={PAD.top}
-              x2={x(m.age)}
+              x2={x(m.xAge)}
               y2={HEIGHT - PAD.bottom}
               className={m.colorClass}
               strokeWidth={m.label.startsWith("Leer") ? 2 : 1}
               strokeDasharray={m.dash ?? "4 3"}
             />
             <text
-              x={x(m.age)}
-              y={PAD.top - 6 - (milestoneLabelOffsets.get(m.age) ?? 0)}
+              x={x(m.xAge)}
+              y={PAD.top - 6 - (milestoneLabelOffsets.get(m.xAge) ?? 0)}
               textAnchor="middle"
               className={`text-[9px] font-medium ${
                 m.label.startsWith("Leer")
@@ -718,7 +794,9 @@ function FinancialIndependenceTimelineChartInner({
           const depleted = p.capitalEnd < 0;
           const hasBvg = p.bvgCapitalInjection > 0;
           const has3a = p.pillar3aCapitalInjection > 0;
-          const hasInjection = hasBvg || has3a;
+          const hasInheritance = (p.inheritanceInjection ?? 0) > 0;
+          const hasInjection = hasCapitalInjectionMarker(p);
+          const offsets = injectionMarkerXOffsets(p);
           const baseR = active ? 6 : hasInjection ? 5 : isPostEmployment ? 3 : 2;
 
           return (
@@ -739,15 +817,23 @@ function FinancialIndependenceTimelineChartInner({
               ) : null}
               {hasBvg && isVisible("bvg") ? (
                 <circle
-                  cx={x(p.age) - 4}
+                  cx={x(p.age) + offsets.bvg}
                   cy={yCapital(p.capitalEnd)}
                   r={baseR}
                   fill={BVG_INJECTION_COLOR}
                 />
               ) : null}
+              {hasInheritance && isVisible("inheritance") ? (
+                <circle
+                  cx={x(p.age) + offsets.inheritance}
+                  cy={yCapital(p.capitalEnd)}
+                  r={baseR}
+                  fill={INHERITANCE_INJECTION_COLOR}
+                />
+              ) : null}
               {has3a && isVisible("pillar3a") ? (
                 <circle
-                  cx={x(p.age) + 4}
+                  cx={x(p.age) + offsets.pillar3a}
                   cy={yCapital(p.capitalEnd)}
                   r={baseR}
                   fill={PILLAR3A_INJECTION_COLOR}
@@ -757,17 +843,31 @@ function FinancialIndependenceTimelineChartInner({
           );
         })}
 
-        {ageLabels.map((p) => (
-          <text
-            key={`age-${p.age}`}
-            x={x(p.age)}
-            y={HEIGHT - 8}
-            textAnchor="middle"
-            className="fill-muted-foreground text-[10px]"
-          >
-            {p.age} J.
-          </text>
-        ))}
+        {ageLabels.map((p) => {
+          const partnerAge = partnerAgeAtPrimaryAge(combinedDetail, p.age);
+          return (
+            <g key={`age-${p.age}`}>
+              <text
+                x={x(p.age)}
+                y={HEIGHT - (householdMode && partnerAge != null ? 20 : 8)}
+                textAnchor="middle"
+                className="fill-muted-foreground text-[10px]"
+              >
+                {householdMode ? `P1 ${p.age}` : `${p.age} J.`}
+              </text>
+              {householdMode && partnerAge != null ? (
+                <text
+                  x={x(p.age)}
+                  y={HEIGHT - 6}
+                  textAnchor="middle"
+                  className="fill-violet-600/80 text-[9px] dark:fill-violet-400/80"
+                >
+                  P2 {partnerAge}
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
       </svg>
 
       {hovered && cursor && (
@@ -781,6 +881,7 @@ function FinancialIndependenceTimelineChartInner({
           <YearTooltip
             point={hovered}
             employmentEndAge={employmentEndAge}
+            householdMode={householdMode}
             combinedRow={
               householdMode
                 ? combinedDetail?.find((row) => row.year === hovered.year)
@@ -815,7 +916,7 @@ function FinancialIndependenceTimelineChartInner({
           },
           {
             id: "withdrawal",
-            label: "Entnahme Vermögen/Jahr",
+            label: "Entnahme aus Kapital/Jahr",
             color: WITHDRAWAL_LINE_COLOR,
             variant: "dashed-line",
           },
@@ -829,6 +930,12 @@ function FinancialIndependenceTimelineChartInner({
             id: "pillar3a",
             label: "Säule 3a Bezug",
             color: PILLAR3A_INJECTION_COLOR,
+            variant: "dot",
+          },
+          {
+            id: "inheritance",
+            label: "Erbschaft / Schenkung",
+            color: INHERITANCE_INJECTION_COLOR,
             variant: "dot",
           },
         ]}

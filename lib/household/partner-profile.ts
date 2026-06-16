@@ -11,6 +11,62 @@ import type { TaxSettings } from "@/lib/tax/additional-income-tax";
 import type { PartnerProfileData, PlanningMode } from "./types";
 import { pillar3aRowsToScenarioAccounts } from "@/lib/scenarios/profile";
 
+export const MIN_EMPLOYMENT_END_AGE = 18;
+export const MAX_EMPLOYMENT_END_AGE = 70;
+
+export function parseEmploymentEndOffsetYears(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return 0;
+  return Math.max(0, Math.min(52, Math.floor(raw)));
+}
+
+/** Partner-Alter im Kalenderjahr (1.1.-Referenz wie Haushaltsprojektion). */
+export function partnerAgeInCalendarYear(
+  birthDate: string,
+  calendarYear: number,
+): number {
+  const birth = new Date(birthDate);
+  let age = calendarYear - birth.getFullYear();
+  const ref = new Date(calendarYear, birth.getMonth(), birth.getDate());
+  const now = new Date(calendarYear, 0, 1);
+  if (ref > now) age--;
+  return age;
+}
+
+function clampEmploymentEndAge(age: number): number {
+  return Math.min(
+    MAX_EMPLOYMENT_END_AGE,
+    Math.max(MIN_EMPLOYMENT_END_AGE, age),
+  );
+}
+
+/** Partner-Erwerbsende ab P1-Erwerbsalter + Offset (Fallback ohne Geburtsdaten). */
+export function derivePartnerEmploymentEndAge(
+  primaryEmploymentEndAge: number,
+  offsetYears: number | null | undefined,
+): number {
+  const offset = parseEmploymentEndOffsetYears(offsetYears ?? 0);
+  return clampEmploymentEndAge(primaryEmploymentEndAge + offset);
+}
+
+/**
+ * Partner-Erwerbsalter für FI/Haushalt: Kalenderstopp wenn P1 trial age erreicht + Offset.
+ * offset 0 = gleicher Kalenderstopp wie Person 1 (nicht zwingend gleiches Lebensalter).
+ */
+export function derivePartnerEmploymentEndAgeForFi(
+  primaryBirthDate: string,
+  partnerBirthDate: string,
+  primaryEmploymentEndAge: number,
+  offsetYears: number | null | undefined,
+): number {
+  const offset = parseEmploymentEndOffsetYears(offsetYears ?? 0);
+  const primaryStopYear =
+    new Date(primaryBirthDate).getFullYear() + primaryEmploymentEndAge;
+  const partnerStopYear = primaryStopYear + offset;
+  return clampEmploymentEndAge(
+    partnerAgeInCalendarYear(partnerBirthDate, partnerStopYear),
+  );
+}
+
 export function parsePartnerProfileData(raw: unknown): PartnerProfileData | null {
   if (!raw || typeof raw !== "object") return null;
   const data = raw as PartnerProfileData;
@@ -29,6 +85,9 @@ export function parsePartnerProfileData(raw: unknown): PartnerProfileData | null
     free_assets_interest_rate: data.free_assets_interest_rate ?? null,
     annual_savings_to_free_assets: data.annual_savings_to_free_assets ?? null,
     workload_reductions: data.workload_reductions ?? null,
+    employment_end_offset_years: parseEmploymentEndOffsetYears(
+      data.employment_end_offset_years,
+    ),
   };
 }
 
@@ -80,6 +139,13 @@ export function partnerProfileFromForm(formData: FormData): PartnerProfileData {
     }
   }
 
+  const employmentEndMode = formData.get("partnerEmploymentEndMode");
+  const offsetRaw = parseAge("partnerEmploymentEndOffsetYears");
+  const employment_end_offset_years =
+    employmentEndMode === "later"
+      ? parseEmploymentEndOffsetYears(offsetRaw ?? 1)
+      : 0;
+
   return {
     birth_date:
       typeof formData.get("partnerBirthDate") === "string"
@@ -102,6 +168,7 @@ export function partnerProfileFromForm(formData: FormData): PartnerProfileData {
     free_assets_interest_rate: parsePercent("partnerFreeAssetsInterestRate"),
     annual_savings_to_free_assets: parseChf("partnerAnnualSavingsToFreeAssets"),
     workload_reductions: normalizeWorkloadReductions(reductions),
+    employment_end_offset_years,
   };
 }
 

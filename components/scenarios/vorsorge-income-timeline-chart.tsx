@@ -11,21 +11,20 @@ import {
   formatCHF,
   type ScenarioPensionResult,
 } from "@/lib/engine";
-import type { CombinedWealthYearProjection } from "@/lib/household/types";
-import {
-  PERSON1_COLOR,
-  PERSON2_COLOR,
-  personLabel,
-} from "@/lib/household/person-colors";
+import { personLabel } from "@/lib/household/person-colors";
 
 const WIDTH = 640;
 const HEIGHT = 280;
 const PAD = { top: 28, right: 16, bottom: 40, left: 64 };
 
+/** Gut unterscheidbare Linienfarben (nicht Primary/Schwarz). */
+const VORSORGE_P1_LINE = "hsl(210 75% 42%)";
+const VORSORGE_P2_LINE = "hsl(280 55% 50%)";
+const VORSORGE_HOUSEHOLD_LINE = "hsl(32 92% 48%)";
+
 const AHV_COLOR = "hsl(var(--chart-5))";
 const BVG_COLOR = "hsl(var(--chart-2))";
-const FREE_ASSETS_COLOR = "hsl(var(--chart-4))";
-const HOUSEHOLD_TOTAL_COLOR = "hsl(var(--chart-3))";
+const FREE_ASSETS_COLOR = "hsl(190 65% 42%)";
 
 export type PersonIncomeBreakdown = {
   ahv: number;
@@ -67,23 +66,23 @@ function personIncomeAtAge(
   const bvg =
     age >= result.bvg.pensionStartAge ? result.bvg.yearlyPension : 0;
   const freeAssets = freeAssetsIncomeAtAge(result, age);
-  return { ahv, bvg, freeAssets, total: ahv + bvg + freeAssets };
+  return {
+    ahv,
+    bvg,
+    freeAssets,
+    total: ahv + bvg + freeAssets,
+  };
 }
 
-function householdIncomeFromCombined(
-  row: CombinedWealthYearProjection,
-  householdRetirementAge: number,
+function sumHouseholdIncome(
+  primary: PersonIncomeBreakdown,
+  partner: PersonIncomeBreakdown | null,
 ): PersonIncomeBreakdown {
-  if (row.primaryAge < householdRetirementAge) {
-    return { ahv: 0, bvg: 0, freeAssets: 0, total: 0 };
-  }
-  const vorsorge = row.annualPensionIncome;
-  const freeAssets = row.interest + row.annualWithdrawal;
   return {
-    ahv: vorsorge,
-    bvg: 0,
-    freeAssets,
-    total: vorsorge + freeAssets,
+    ahv: primary.ahv + (partner?.ahv ?? 0),
+    bvg: primary.bvg + (partner?.bvg ?? 0),
+    freeAssets: primary.freeAssets + (partner?.freeAssets ?? 0),
+    total: primary.total + (partner?.total ?? 0),
   };
 }
 
@@ -94,8 +93,6 @@ export function buildVorsorgeIncomeTimeline(
   partner?: ScenarioPensionResult | null,
   partnerBirthDate?: string | null,
   partnerPlanningHorizonAge?: number,
-  combinedProjection?: CombinedWealthYearProjection[],
-  householdRetirementAge?: number,
 ): VorsorgeIncomeYear[] {
   const currentYear = new Date().getFullYear();
   const currentPrimaryAge = calculateAge(primaryBirthDate);
@@ -112,9 +109,6 @@ export function buildVorsorgeIncomeTimeline(
     );
   }
 
-  const householdRetirement =
-    householdRetirementAge ?? primary.summary.employmentEndAge;
-
   const rows: VorsorgeIncomeYear[] = [];
   for (let year = currentYear; year <= endYear; year++) {
     const primaryAge = ageAtCalendarYear(primaryBirthDate, year);
@@ -127,19 +121,7 @@ export function buildVorsorgeIncomeTimeline(
       partner && partnerAge != null
         ? personIncomeAtAge(partner, partnerAge)
         : null;
-
-    const combinedRow = combinedProjection?.find((r) => r.year === year);
-    const household =
-      combinedRow && partner
-        ? householdIncomeFromCombined(combinedRow, householdRetirement)
-        : {
-            ahv: primaryIncome.ahv + (partnerIncome?.ahv ?? 0),
-            bvg: primaryIncome.bvg + (partnerIncome?.bvg ?? 0),
-            freeAssets:
-              primaryIncome.freeAssets + (partnerIncome?.freeAssets ?? 0),
-            total:
-              primaryIncome.total + (partnerIncome?.total ?? 0),
-          };
+    const household = sumHouseholdIncome(primaryIncome, partnerIncome);
 
     rows.push({
       year,
@@ -204,7 +186,7 @@ function PersonIncomeTooltip({
   age: number;
   income: PersonIncomeBreakdown;
 }) {
-  const color = role === "primary" ? PERSON1_COLOR : PERSON2_COLOR;
+  const color = role === "primary" ? VORSORGE_P1_LINE : VORSORGE_P2_LINE;
   const label = personLabel(role);
 
   return (
@@ -251,8 +233,6 @@ type Props = {
   partner?: ScenarioPensionResult | null;
   partnerBirthDate?: string | null;
   partnerPlanningHorizonAge?: number;
-  combinedProjection?: CombinedWealthYearProjection[];
-  householdRetirementAge?: number;
 };
 
 export function VorsorgeIncomeTimelineChart({
@@ -262,8 +242,6 @@ export function VorsorgeIncomeTimelineChart({
   partner = null,
   partnerBirthDate = null,
   partnerPlanningHorizonAge,
-  combinedProjection,
-  householdRetirementAge,
 }: Props) {
   const hasPartner = partner != null && partnerBirthDate != null;
 
@@ -276,8 +254,6 @@ export function VorsorgeIncomeTimelineChart({
         partner,
         partnerBirthDate,
         partnerPlanningHorizonAge,
-        combinedProjection,
-        householdRetirementAge,
       ),
     [
       primary,
@@ -286,8 +262,6 @@ export function VorsorgeIncomeTimelineChart({
       partner,
       partnerBirthDate,
       partnerPlanningHorizonAge,
-      combinedProjection,
-      householdRetirementAge,
     ],
   );
 
@@ -428,14 +402,14 @@ function VorsorgeIncomeTimelineChartInner({
           {
             id: "primary",
             label: `${personLabel("primary")}: ${formatCHF(lastRow?.primary.total ?? 0)}/J.`,
-            color: PERSON1_COLOR,
+            color: VORSORGE_P1_LINE,
           },
           ...(hasPartner
             ? [
                 {
                   id: "partner",
                   label: `${personLabel("partner")}: ${formatCHF(lastRow?.partner?.total ?? 0)}/J.`,
-                  color: PERSON2_COLOR,
+                  color: VORSORGE_P2_LINE,
                 },
               ]
             : []),
@@ -444,7 +418,7 @@ function VorsorgeIncomeTimelineChartInner({
                 {
                   id: "household",
                   label: `Haushalt gesamt: ${formatCHF(lastRow?.household.total ?? 0)}/J.`,
-                  color: HOUSEHOLD_TOTAL_COLOR,
+                  color: VORSORGE_HOUSEHOLD_LINE,
                 },
               ]
             : []),
@@ -520,7 +494,7 @@ function VorsorgeIncomeTimelineChartInner({
             <path
               d={partnerPath}
               fill="none"
-              stroke={PERSON2_COLOR}
+              stroke={VORSORGE_P2_LINE}
               strokeWidth={2}
               strokeOpacity={0.85}
             />
@@ -530,7 +504,7 @@ function VorsorgeIncomeTimelineChartInner({
             <path
               d={primaryPath}
               fill="none"
-              stroke={PERSON1_COLOR}
+              stroke={VORSORGE_P1_LINE}
               strokeWidth={2.5}
             />
           ) : null}
@@ -539,7 +513,7 @@ function VorsorgeIncomeTimelineChartInner({
             <path
               d={householdPath}
               fill="none"
-              stroke={HOUSEHOLD_TOTAL_COLOR}
+              stroke={VORSORGE_HOUSEHOLD_LINE}
               strokeWidth={2}
               strokeOpacity={0.9}
             />
@@ -552,7 +526,7 @@ function VorsorgeIncomeTimelineChartInner({
                   cx={xScale(hover.primaryAge)}
                   cy={yScale(hover.primary.total)}
                   r={4}
-                  fill={PERSON1_COLOR}
+                  fill={VORSORGE_P1_LINE}
                 />
               ) : null}
               {hasPartner &&
@@ -562,7 +536,7 @@ function VorsorgeIncomeTimelineChartInner({
                   cx={xScale(hover.primaryAge)}
                   cy={yScale(hover.partner?.total ?? 0)}
                   r={4}
-                  fill={PERSON2_COLOR}
+                  fill={VORSORGE_P2_LINE}
                 />
               ) : null}
               {showHouseholdTotalLine &&
@@ -572,7 +546,7 @@ function VorsorgeIncomeTimelineChartInner({
                   cx={xScale(hover.primaryAge)}
                   cy={yScale(hover.household.total)}
                   r={4}
-                  fill={HOUSEHOLD_TOTAL_COLOR}
+                  fill={VORSORGE_HOUSEHOLD_LINE}
                 />
               ) : null}
             </>
@@ -619,7 +593,7 @@ function VorsorgeIncomeTimelineChartInner({
             <div className="mt-2 border-t border-border/60 pt-2">
               <p
                 className="mb-1 text-[10px] font-medium uppercase tracking-wide"
-                style={{ color: HOUSEHOLD_TOTAL_COLOR }}
+                style={{ color: VORSORGE_HOUSEHOLD_LINE }}
               >
                 Haushalt gesamt
               </p>
@@ -640,7 +614,7 @@ function VorsorgeIncomeTimelineChartInner({
                 <TooltipRow
                   label="Total"
                   value={formatCHF(hover.household.total)}
-                  color={HOUSEHOLD_TOTAL_COLOR}
+                  color={VORSORGE_HOUSEHOLD_LINE}
                 />
               </dl>
             </div>

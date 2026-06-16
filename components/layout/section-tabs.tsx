@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   Card,
@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 export type SectionTab = {
@@ -23,31 +23,66 @@ export type SectionTab = {
 type SectionTabsProps = {
   tabs: SectionTab[];
   defaultValue?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
   className?: string;
 };
 
 /**
  * Horizontal tab navigation for multi-section forms.
- * Inactive panels stay mounted (forceMount) so form fields remain in the DOM.
+ * All panels stay mounted; inactive panels are hidden via CSS only (not the HTML
+ * `hidden` attribute) so every control remains part of form submission.
  */
-export function SectionTabs({ tabs, defaultValue, className }: SectionTabsProps) {
+export function SectionTabs({
+  tabs,
+  defaultValue,
+  value,
+  onValueChange,
+  className,
+}: SectionTabsProps) {
   const visible = tabs.filter((tab) => !tab.hidden);
   const initial = defaultValue ?? visible[0]?.value ?? "tab-0";
+  const isControlled = value !== undefined;
+  const [internalTab, setInternalTab] = useState(initial);
 
   if (visible.length === 0) return null;
 
+  const activeValue =
+    isControlled && visible.some((tab) => tab.value === value)
+      ? value!
+      : isControlled
+        ? initial
+        : internalTab;
+
+  const handleValueChange = (next: string) => {
+    if (!isControlled) {
+      setInternalTab(next);
+    }
+    onValueChange?.(next);
+  };
+
   return (
-    <Tabs defaultValue={initial} className={cn("w-full", className)}>
+    <Tabs
+      value={activeValue}
+      onValueChange={handleValueChange}
+      className={cn("w-full", className)}
+    >
       <TabsList className="w-full justify-start">
         {visible.map((tab) => (
-          <TabsTrigger key={tab.value} value={tab.value}>
+          <TabsTrigger key={tab.value} value={tab.value} id={`section-tab-${tab.value}`}>
             {tab.label}
           </TabsTrigger>
         ))}
       </TabsList>
 
       {visible.map((tab) => (
-        <TabsContent key={tab.value} value={tab.value} forceMount>
+        <div
+          key={tab.value}
+          role="tabpanel"
+          aria-labelledby={`section-tab-${tab.value}`}
+          id={`section-tabpanel-${tab.value}`}
+          className={cn("mt-4", activeValue !== tab.value && "hidden")}
+        >
           <Card>
             {tab.description ? (
               <CardHeader className="pb-4">
@@ -59,7 +94,7 @@ export function SectionTabs({ tabs, defaultValue, className }: SectionTabsProps)
               {tab.content}
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
       ))}
     </Tabs>
   );

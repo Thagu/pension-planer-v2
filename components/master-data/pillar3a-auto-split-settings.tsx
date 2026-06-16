@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,7 @@ export function Pillar3aAutoSplitSettings({
   );
   const [namePrefix, setNamePrefix] = useState(initialPrefix ?? "3a-Konto");
 
-  useEffect(() => {
+  const notifyChange = () => {
     onSettingsChange?.();
     if (typeof document === "undefined") return;
     document
@@ -43,7 +43,7 @@ export function Pillar3aAutoSplitSettings({
         'input[name="pillar3aAutoSplitEnabled"]',
       )
       ?.dispatchEvent(new Event("input", { bubbles: true }));
-  }, [enabled, threshold, mode, namePrefix, onSettingsChange]);
+  };
 
   return (
     <div className="md:col-span-2 space-y-4 rounded-lg border border-border/60 bg-muted/10 p-4">
@@ -64,7 +64,10 @@ export function Pillar3aAutoSplitSettings({
         <Checkbox
           id="pillar3aAutoSplitEnabledUi"
           checked={enabled}
-          onCheckedChange={(v) => setEnabled(v === true)}
+          onCheckedChange={(v) => {
+            setEnabled(v === true);
+            notifyChange();
+          }}
         />
         <div className="space-y-1">
           <Label htmlFor="pillar3aAutoSplitEnabledUi" className="cursor-pointer">
@@ -91,6 +94,7 @@ export function Pillar3aAutoSplitSettings({
                     ? ""
                     : formatSwissNumber(parsed),
                 );
+                notifyChange();
               }}
               step={CHF_STEP.wealth}
               placeholder="100'000"
@@ -102,9 +106,10 @@ export function Pillar3aAutoSplitSettings({
             <select
               id="pillar3aAutoSplitModeUi"
               value={mode}
-              onChange={(e) =>
-                setMode(e.target.value === "last" ? "last" : "max")
-              }
+              onChange={(e) => {
+                setMode(e.target.value === "last" ? "last" : "max");
+                notifyChange();
+              }}
               className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="max">Maximal abzugsfähig</option>
@@ -116,7 +121,10 @@ export function Pillar3aAutoSplitSettings({
             <Input
               id="pillar3aAutoSplitPrefixUi"
               value={namePrefix}
-              onChange={(e) => setNamePrefix(e.target.value)}
+              onChange={(e) => {
+                setNamePrefix(e.target.value);
+                notifyChange();
+              }}
               placeholder="3a-Konto"
             />
             <p className="text-xs text-muted-foreground">

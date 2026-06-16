@@ -55,6 +55,50 @@ export async function saveScenario(
   redirect(`/scenarios/${created.id}?saved=1`);
 }
 
+export async function copyScenario(sourceId: string, newName: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/login");
+  }
+
+  const trimmedName = newName.trim();
+  if (!trimmedName) {
+    redirect(`/scenarios/${sourceId}?error=copy_missing_name`);
+  }
+
+  const { data: source, error: loadError } = await supabase
+    .from("scenarios")
+    .select("id, data")
+    .eq("id", sourceId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (loadError || !source) {
+    redirect(`/scenarios/${sourceId}?error=copy_not_found`);
+  }
+
+  const { data: created, error: insertError } = await supabase
+    .from("scenarios")
+    .insert({
+      user_id: user.id,
+      name: trimmedName,
+      data: source.data,
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !created) {
+    redirect(`/scenarios/${sourceId}?error=copy_failed`);
+  }
+
+  revalidatePath("/scenarios");
+  redirect(`/scenarios/${created.id}?copied=1`);
+}
+
 export async function deleteScenario(scenarioId: string) {
   const supabase = await createClient();
   const {

@@ -3,6 +3,15 @@
  * Percentages are shown as 5 (meaning 5%), stored in DB as 0.05.
  */
 
+/** CHF display with ASCII apostrophe thousands separator (SSR-safe). */
+export function formatCHF(amount: number | null | undefined): string {
+  const value = Math.round(amount ?? 0);
+  const formatted = formatSwissNumber(value, true);
+  return formatted.startsWith("-")
+    ? `-CHF ${formatted.slice(1)}`
+    : `CHF ${formatted}`;
+}
+
 export function formatSwissNumber(
   value: number | null | undefined,
   allowZero = false,
@@ -30,13 +39,32 @@ export function parseSwissNumber(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** Nachkommastellen passend zum Schritt (0.1 → 1, 0.25 → 2). */
+export function decimalsForPercentStep(step: number): number {
+  if (step >= 1) return 0;
+  const stepText = step.toString();
+  const dot = stepText.indexOf(".");
+  return dot === -1 ? 0 : stepText.length - dot - 1;
+}
+
+/** Prozent-Eingabefeld: ohne Float-Artefakte und ohne unnötige Nullen. */
+export function formatPercentInput(
+  value: number,
+  maxDecimals = 2,
+): string {
+  if (!Number.isFinite(value)) return "";
+  const factor = 10 ** maxDecimals;
+  const rounded = Math.round(value * factor) / factor;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return rounded.toFixed(maxDecimals).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 /** DB decimal (0.05) → display "5" for percent inputs */
 export function decimalToPercentDisplay(
   decimal: number | null | undefined,
 ): string {
   if (decimal == null || !Number.isFinite(decimal)) return "";
-  const pct = decimalRateToPercent(decimal);
-  return pct.toFixed(4).replace(/\.?0+$/, "");
+  return formatPercentInput(decimalRateToPercent(decimal), 2);
 }
 
 /** DB may store 0.068 (decimal) or 6.8 (legacy percent) → always decimal */
@@ -72,7 +100,8 @@ export function formatPercentOneDecimal(value: number): string {
 /** Gespeichertes Szenario: Prozent (6.8) oder Dezimal (0.068) → Anzeige in % */
 export function scenarioRateToDisplayPercent(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.abs(value) <= 1 ? decimalRateToPercent(value) : value;
+  const pct = Math.abs(value) <= 1 ? decimalRateToPercent(value) : value;
+  return Math.round(pct * 100) / 100;
 }
 
 /** Form "5" or "5%" → DB decimal 0.05 */

@@ -24,12 +24,7 @@ import { CHF_STEP } from "@/components/shared/numeric-steps";
 import { ChfStepperInput } from "@/components/shared/stepper-inputs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  formatCHF,
-  type HouseholdPensionResult,
-  type ProfileForScenario,
-  type ScenarioPensionResult,
-} from "@/lib/engine";
+import { formatCHF, normalizeWorkloadReductions, type HouseholdPensionResult, type ProfileForScenario, type ScenarioPensionResult } from "@/lib/engine";
 import type { HouseholdProfileForScenario } from "@/lib/household/types";
 import type { AhvOverrideState } from "@/components/scenarios/scenario-ahv-section";
 import type { BvgOverrideState } from "@/components/scenarios/scenario-bvg-section";
@@ -107,6 +102,8 @@ type ScenarioFormTabsProps = {
   setUsePartnerWorkloadOverride: (v: boolean) => void;
   partnerWorkloadReductions: WorkloadReduction[];
   setPartnerWorkloadReductions: (v: WorkloadReduction[]) => void;
+  resolvedPrimaryWorkload: WorkloadReduction[];
+  resolvedPartnerWorkload: WorkloadReduction[];
   useFreeAssetsValueOverride: boolean;
   setUseFreeAssetsValueOverride: (v: boolean) => void;
   freeAssetsValueOverride: string;
@@ -180,6 +177,8 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
     setUsePartnerWorkloadOverride,
     partnerWorkloadReductions,
     setPartnerWorkloadReductions,
+    resolvedPrimaryWorkload,
+    resolvedPartnerWorkload,
     useFreeAssetsValueOverride,
     setUseFreeAssetsValueOverride,
     freeAssetsValueOverride,
@@ -531,8 +530,6 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
                   partnerPlanningHorizonAge={
                     partnerProfile?.planningHorizonAge ?? undefined
                   }
-                  combinedProjection={householdResult?.combinedProjection}
-                  householdRetirementAge={householdResult?.householdRetirementAge}
                 />
               </div>
               <div className="space-y-3">

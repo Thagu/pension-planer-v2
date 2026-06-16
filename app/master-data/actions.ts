@@ -24,6 +24,16 @@ import {
   parsePlanningMode,
 } from "@/lib/household/partner-profile";
 
+function redirectSaveError(message: string, tab?: string | null) {
+  const tabParam =
+    typeof tab === "string" && tab.trim()
+      ? `&tab=${encodeURIComponent(tab.trim())}`
+      : "";
+  redirect(
+    `/master-data?error=${encodeURIComponent("save_failed")}&detail=${encodeURIComponent(message.slice(0, 500))}${tabParam}`,
+  );
+}
+
 function toYearOrNull(value: FormDataEntryValue | null): number | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -205,23 +215,21 @@ async function syncPillar3aAccounts(
   return saved;
 }
 
-export async function saveMasterData(formData: FormData) {
-  await ensureProfileExtensionColumns();
+export type PersistMasterDataResult =
+  | { ok: true; savedPillar3a: Pillar3aAccountMeta[]; extensions: ReturnType<typeof buildExtensionsPayload> }
+  | { ok: false; error: string };
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
-
+/** Speichert Stammdaten ohne Redirect — für Onboarding-Wizard. */
+export async function persistMasterDataFromForm(
+  formData: FormData,
+  userId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<PersistMasterDataResult> {
   const birthDateRaw = formData.get("birthDate");
   const genderRaw = formData.get("gender");
 
   const basePayload = {
-    id: user.id,
+    id: userId,
     birth_date:
       typeof birthDateRaw === "string" && birthDateRaw.trim()
         ? birthDateRaw
@@ -256,11 +264,13 @@ export async function saveMasterData(formData: FormData) {
 
   const extensions = buildExtensionsPayload(formData);
 
-  if (extensions.tax_postal_code || extensions.tax_canton || extensions.tax_municipality) {
+  if (
+    extensions.tax_postal_code ||
+    extensions.tax_canton ||
+    extensions.tax_municipality
+  ) {
     if (!extensions.tax_postal_code || !extensions.tax_canton) {
-      redirect(
-        `/master-data?error=${encodeURIComponent("tax_postal_code_required")}`,
-      );
+      return { ok: false, error: "Postleitzahl und Kanton sind erforderlich." };
     }
     const resolved = resolveMunicipalityFromPostalCode(
       extensions.tax_postal_code,
@@ -268,9 +278,10 @@ export async function saveMasterData(formData: FormData) {
       extensions.tax_municipality,
     );
     if (!resolved.ok || !resolved.municipality) {
-      redirect(
-        `/master-data?error=${encodeURIComponent("tax_postal_code_invalid")}&detail=${encodeURIComponent(resolved.ok ? "Gemeinde fehlt" : resolved.error)}`,
-      );
+      return {
+        ok: false,
+        error: resolved.ok ? "Gemeinde fehlt" : resolved.error,
+      };
     }
     extensions.tax_municipality = resolved.municipality;
   }
@@ -301,20 +312,23 @@ export async function saveMasterData(formData: FormData) {
     inflation_rate: extensions.inflation_rate,
   };
 
-  let { error } = await supabase
-    .from("profiles")
-    .upsert({ ...basePayload, ...extendedPayload }, { onConflict: "id" });
+  const upsertProfile = async () =>
+    supabase
+      .from("profiles")
+      .upsert({ ...basePayload, ...extendedPayload }, { onConflict: "id" });
+
+  let { error } = await upsertProfile();
 
   if (error && isMissingProfileColumnError(error.message)) {
-    const retry = await supabase
-      .from("profiles")
-      .upsert(basePayload, { onConflict: "id" });
-    error = retry.error;
+    await ensureProfileExtensionColumns(true);
+    ({ error } = await upsertProfile());
   }
 
   if (error) {
-    console.error("[saveMasterData]", error.message);
-    redirect(`/master-data?error=${encodeURIComponent("save_failed")}`);
+    const hint = isMissingProfileColumnError(error.message)
+      ? " Datenbank-Schema veraltet — Migrationen in Supabase ausführen."
+      : "";
+    return { ok: false, error: `${error.message}${hint}` };
   }
 
   let savedPillar3a: Pillar3aAccountMeta[] = [];
@@ -324,7 +338,7 @@ export async function saveMasterData(formData: FormData) {
     );
     savedPillar3a = await syncPillar3aAccounts(
       supabase,
-      user.id,
+      userId,
       pillar3aAccounts,
       "primary",
     );
@@ -335,17 +349,17 @@ export async function saveMasterData(formData: FormData) {
       );
       await syncPillar3aAccounts(
         supabase,
-        user.id,
+        userId,
         partnerPillar3a,
         "partner",
       );
     }
   } catch (syncError) {
-    console.error("[saveMasterData] pillar3a", syncError);
-    redirect(`/master-data?error=${encodeURIComponent("save_failed")}`);
+    const message =
+      syncError instanceof Error ? syncError.message : "3a-Sync fehlgeschlagen";
+    return { ok: false, error: message };
   }
 
-  // Metadata-Sync als Backup (primär: profiles + pillar3a_accounts Tabellen)
   const { error: metaError } = await supabase.auth.updateUser({
     data: {
       ...metadataPatchForExtensions(extensions),
@@ -354,11 +368,38 @@ export async function saveMasterData(formData: FormData) {
   });
 
   if (metaError) {
-    console.error("[saveMasterData] metadata", metaError.message);
+    console.error("[persistMasterDataFromForm] metadata", metaError.message);
+  }
+
+  return { ok: true, savedPillar3a, extensions };
+}
+
+export async function saveMasterData(formData: FormData) {
+  await ensureProfileExtensionColumns();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/login");
+  }
+
+  const tabRaw = formData.get("activeTab");
+  const activeTab =
+    typeof tabRaw === "string" && tabRaw.trim() ? tabRaw.trim() : null;
+
+  const result = await persistMasterDataFromForm(formData, user.id, supabase);
+
+  if (!result.ok) {
+    redirectSaveError(result.error, activeTab);
   }
 
   revalidatePath("/master-data");
   revalidatePath("/scenarios");
   revalidatePath("/scenarios/new");
-  redirect("/master-data?saved=1");
+
+  const tabParam = activeTab ? `&tab=${encodeURIComponent(activeTab)}` : "";
+  redirect(`/master-data?saved=1${tabParam}`);
 }
