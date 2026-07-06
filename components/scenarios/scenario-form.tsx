@@ -9,94 +9,52 @@ import {
 } from "lucide-react";
 
 import { saveScenario } from "@/app/scenarios/actions";
-import { HouseholdPillar3aChart } from "@/components/household/household-pillar3a-chart";
-import { HouseholdPensionSummary } from "@/components/household/household-pension-summary";
-import { HouseholdSplitLayout } from "@/components/household/household-split-layout";
 import {
-  InheritanceEventsCard,
   inheritanceDraftsFromEvents,
   inheritanceEventsFromDrafts,
   type InheritanceEventDraft,
 } from "@/components/scenarios/inheritance-events-card";
 import {
-  ScenarioAhvSection,
   ahvOverridesFromState,
   buildInitialAhvState,
   type AhvOverrideState,
 } from "@/components/scenarios/scenario-ahv-section";
-import { ScenarioPersonPanel } from "@/components/scenarios/scenario-person-panel";
 import {
-  ScenarioBvgSection,
   bvgOverridesFromState,
   type BvgOverrideState,
 } from "@/components/scenarios/scenario-bvg-section";
-import { CapitalWithdrawalOptimizerCard } from "@/components/scenarios/capital-withdrawal-optimizer-card";
-import {
-  countPensionIncomeSources,
-  PensionIncomeChart,
-} from "@/components/scenarios/pension-income-chart";
+import { countPensionIncomeSources } from "@/components/scenarios/pension-income-chart";
 import { ScenarioWealthPreview } from "@/components/scenarios/scenario-wealth-preview";
-import { VorsorgeIncomeTimelineChart } from "@/components/scenarios/vorsorge-income-timeline-chart";
-import { PensionSummary } from "@/components/scenarios/pension-summary";
-import { Pillar3aProjectionChart } from "@/components/scenarios/pillar3a-projection-chart";
 import {
   buildInitialPillar3aOverrides,
   pillar3aOverridesToScenario,
-  ScenarioPillar3aSection,
   type Pillar3aAccountOverrideState,
 } from "@/components/scenarios/scenario-pillar3a-section";
-import { WorkloadReductionFields } from "@/components/shared/workload-reduction-fields";
-import {
-  ProfileDefaultItem,
-  ProfileDefaultsPanel,
-  ProfileInheritanceNote,
-  ScenarioAdjustmentsHeading,
-  ScenarioOverrideRow,
-} from "@/components/scenarios/scenario-profile-ui";
-import { isBvgContributionBucketRelevant } from "@/lib/bvg/contribution-buckets";
 import { Button } from "@/components/ui/button";
 import { ScenarioFormTabs } from "@/components/scenarios/scenario-form-tabs";
 import { StickyPreviewLayout } from "@/components/layout/sticky-preview-layout";
-import { CHF_STEP } from "@/components/shared/numeric-steps";
-import {
-  ChfStepperInput,
-  PercentStepperNumberInput,
-} from "@/components/shared/stepper-inputs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { PercentStepperNumberInput } from "@/components/shared/stepper-inputs";
 import {
   BVG_CONTRIBUTION_BUCKETS,
   BVG_CONTRIBUTION_RATES,
   BVG_CONVERSION_RATE,
-  BVG_GUIDANCE_MAX_CAPITAL_WITHDRAWAL,
-  BVG_MAX_CAPITAL_WITHDRAWAL_TRANCHES,
   BVG_MIN_INTEREST_RATE,
   calculateAge,
   calculateScenarioPension,
   calculateHouseholdPension,
-  formatCHF,
   getAhvEarliestPensionAge,
   getAhvReferenceAge,
   BVG_EARLIEST_PENSION_AGE,
-  formatWorkloadReductions,
   normalizeWorkloadReductions,
   type ProfileForScenario,
   type ScenarioOverrides,
-  type CapitalWithdrawalOptimizationResult,
   type WorkloadReduction,
 } from "@/lib/engine";
 import {
   formatSwissNumber,
   parseSwissNumber,
-  formatRatePercent,
-  formatPercentOneDecimal,
   scenarioRateToDisplayPercent,
 } from "@/lib/format/numbers";
-import {
-  PERSON1_COLOR,
-  PERSON2_COLOR,
-  personLabel,
-} from "@/lib/household/person-colors";
 import {
   profileContributionRatesToPercent,
   profileRateToPercent,
@@ -565,28 +523,6 @@ export function ScenarioForm({
     }));
   };
 
-  const handleApplyOptimization = (
-    optimization: CapitalWithdrawalOptimizationResult,
-  ) => {
-    const { suggestion } = optimization;
-    setCapitalWithdrawalPercent(suggestion.bvgCapitalWithdrawalPercent);
-    setCapitalWithdrawalTranches(suggestion.bvgCapitalWithdrawalTranches);
-    setPillar3aOverrideState((prev) => {
-      const next = { ...prev };
-      for (const [accountId, offset] of Object.entries(
-        suggestion.pillar3aWithdrawalSchedule,
-      )) {
-        if (next[accountId]) {
-          next[accountId] = {
-            ...next[accountId],
-            withdrawalYearOffset: offset,
-          };
-        }
-      }
-      return next;
-    });
-  };
-
   const resolvedPrimaryWorkload = useMemo(
     () =>
       normalizeWorkloadReductions(
@@ -956,8 +892,6 @@ export function ScenarioForm({
           setUsePartnerWorkloadOverride={setUsePartnerWorkloadOverride}
           partnerWorkloadReductions={partnerWorkloadReductions}
           setPartnerWorkloadReductions={setPartnerWorkloadReductions}
-          resolvedPrimaryWorkload={resolvedPrimaryWorkload}
-          resolvedPartnerWorkload={resolvedPartnerWorkload}
           useFreeAssetsValueOverride={useFreeAssetsValueOverride}
           setUseFreeAssetsValueOverride={setUseFreeAssetsValueOverride}
           freeAssetsValueOverride={freeAssetsValueOverride}

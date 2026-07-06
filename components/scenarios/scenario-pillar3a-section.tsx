@@ -20,7 +20,6 @@ import {
   PILLAR_3A_MAX_WITHDRAWAL_OFFSET,
   clampPillar3aWithdrawalOffset,
   pillar3aWithdrawalOffsetBounds,
-  type Pillar3aAccountResult,
   type Pillar3aResult,
   type ProfileForScenario,
   type ScenarioOverrides,
@@ -31,7 +30,6 @@ import { profileRateToPercent } from "@/lib/scenarios/profile";
 import {
   PERSON1_COLOR,
   PERSON2_COLOR,
-  personLabel,
 } from "@/lib/household/person-colors";
 
 export type Pillar3aEffectiveAccount = {

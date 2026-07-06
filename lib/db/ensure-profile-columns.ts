@@ -14,6 +14,8 @@ const PROFILE_MIGRATION_FILES = [
   "012_inflation_rate.sql",
   "013_annual_survivor_expenses.sql",
   "014_onboarding_completed.sql",
+  "015_household_free_assets.sql",
+  "016_first_name.sql",
 ] as const;
 
 /**

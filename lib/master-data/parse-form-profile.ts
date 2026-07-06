@@ -114,8 +114,13 @@ function primaryProfileFromForm(
 
   const extensions = buildExtensionsPayload(formData);
   const genderRaw = formData.get("gender");
+  const firstNameRaw = formData.get("firstName");
 
   return {
+    firstName:
+      typeof firstNameRaw === "string" && firstNameRaw.trim()
+        ? firstNameRaw.trim()
+        : null,
     birthDate: birthDateRaw,
     gender:
       genderRaw === "male" || genderRaw === "female"
@@ -194,6 +199,7 @@ export function parseMasterDataFormToHousehold(
           pillar3aDefaultReturnRate: primary.pillar3aDefaultReturnRate ?? null,
           pillar3aAutoSplit: primary.pillar3aAutoSplit,
           inflationRate: primary.inflationRate,
+          freeAssetsReturnRate: primary.freeAssetsInterestRate ?? null,
         })
       : null;
 

@@ -48,6 +48,54 @@ export function suggestedPillar3aContribution(
   return Math.max(0, PILLAR_3A_MAX_CONTRIBUTION - used);
 }
 
+/** Serialisiert Konto-Entwürfe in das FormData-JSON-Format (Stammdaten & Wizard). */
+export function serializePillar3aDrafts(items: Pillar3aAccountDraft[]): string {
+  return JSON.stringify(
+    items.map((item, index) => ({
+      id: persistedPillar3aAccountIdOrNull(item.id),
+      name: item.name.trim() || `3a-Konto ${index + 1}`,
+      provider: item.provider.trim() || null,
+      currentValue: item.currentValue,
+      annualContribution: item.annualContribution,
+      returnRatePercent: item.returnRatePercent.trim()
+        ? parseFloat(item.returnRatePercent.replace(",", "."))
+        : null,
+      sortOrder: index,
+    })),
+  );
+}
+
+/** Liest das FormData-JSON-Format zurück in Konto-Entwürfe (z. B. Wizard-Replay). */
+export function parsePillar3aDraftsJson(json: string): Pillar3aAccountDraft[] {
+  if (typeof json !== "string" || !json.trim()) return [];
+  try {
+    const parsed = JSON.parse(json) as Array<Record<string, unknown>>;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item, index) => {
+      const rate = item.returnRatePercent;
+      return {
+        id:
+          persistedPillar3aAccountIdOrNull(
+            typeof item.id === "string" ? item.id : null,
+          ) ?? `new-${index}`,
+        name:
+          typeof item.name === "string" && item.name.trim()
+            ? item.name
+            : `3a-Konto ${index + 1}`,
+        provider: typeof item.provider === "string" ? item.provider : "",
+        currentValue: Number(item.currentValue) || 0,
+        annualContribution: Number(item.annualContribution) || 0,
+        returnRatePercent:
+          rate != null && rate !== "" && Number.isFinite(Number(rate))
+            ? String(rate)
+            : "",
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 export function rowToPillar3aDraft(row: Pillar3aAccountRow): Pillar3aAccountDraft {
   const rate = row.return_rate;
   const returnRatePercent =

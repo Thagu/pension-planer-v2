@@ -317,7 +317,7 @@ function BvgSectionBody({
           <BvgContributionChart
             projection={result.projection}
             accentColor={accentColor}
-            personLabel={personLabel(person)}
+            personLabel={personLabel(person, profile?.firstName)}
           />
         </div>
       ) : null}
@@ -335,7 +335,7 @@ export function ScenarioBvgSection(props: Props) {
 
   return (
     <CollapsibleCard
-      title={`BVG (2. Säule) · ${personLabel(props.person)}`}
+      title={`BVG (2. Säule) · ${personLabel(props.person, props.profile?.firstName)}`}
       description="Kapital, Zinssatz, Umwandlung und Gutschriften aus den Stammdaten — optional überschreibbar."
       icon={<Building2 className="h-5 w-5" style={{ color: accentColor }} />}
     >

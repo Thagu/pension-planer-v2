@@ -227,9 +227,14 @@ export async function persistMasterDataFromForm(
 ): Promise<PersistMasterDataResult> {
   const birthDateRaw = formData.get("birthDate");
   const genderRaw = formData.get("gender");
+  const firstNameRaw = formData.get("firstName");
 
   const basePayload = {
     id: userId,
+    first_name:
+      typeof firstNameRaw === "string" && firstNameRaw.trim()
+        ? firstNameRaw.trim()
+        : null,
     birth_date:
       typeof birthDateRaw === "string" && birthDateRaw.trim()
         ? birthDateRaw

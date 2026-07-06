@@ -76,6 +76,7 @@ export async function loadHouseholdProfileForScenario(
           pillar3aDefaultReturnRate: primary.pillar3aDefaultReturnRate ?? null,
           pillar3aAutoSplit: primary.pillar3aAutoSplit,
           inflationRate: primary.inflationRate,
+          freeAssetsReturnRate: primary.freeAssetsInterestRate ?? null,
         })
       : null;
 

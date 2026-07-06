@@ -71,6 +71,7 @@ export function parsePartnerProfileData(raw: unknown): PartnerProfileData | null
   if (!raw || typeof raw !== "object") return null;
   const data = raw as PartnerProfileData;
   return {
+    first_name: data.first_name ?? null,
     birth_date: data.birth_date ?? null,
     gender: data.gender ?? null,
     employment_start_year: data.employment_start_year ?? null,
@@ -147,6 +148,10 @@ export function partnerProfileFromForm(formData: FormData): PartnerProfileData {
       : 0;
 
   return {
+    first_name:
+      typeof formData.get("partnerFirstName") === "string"
+        ? String(formData.get("partnerFirstName")).trim() || null
+        : null,
     birth_date:
       typeof formData.get("partnerBirthDate") === "string"
         ? String(formData.get("partnerBirthDate")).trim() || null
@@ -182,18 +187,27 @@ export function partnerDataToProfileForScenario(
     pillar3aDefaultReturnRate?: number | null;
     pillar3aAutoSplit?: ProfileForScenario["pillar3aAutoSplit"];
     inflationRate?: number | null;
+    /**
+     * Rendite des gemeinsamen freien Vermögens (Haushaltswert). Der Partner hält
+     * kein eigenes Startkapital mehr (Pooling): Kapital liegt bei `primary`, der
+     * Partner bringt nur seine Sparquote in denselben Topf ein – daher muss er
+     * dieselbe Rendite verwenden.
+     */
+    freeAssetsReturnRate?: number | null;
   },
 ): ProfileForScenario | null {
   if (!data?.birth_date) return null;
 
   return {
+    firstName: data.first_name ?? null,
     birthDate: data.birth_date,
     gender: data.gender ?? null,
     employmentStartYear: data.employment_start_year ?? null,
     retirementAge: data.retirement_age ?? 65,
     currentSalaryBrutto: Number(data.current_salary_brutto ?? 0),
     bvgCurrentCapital: Number(data.bvg_current_capital ?? 0),
-    freeAssets: Number(data.free_assets ?? 0),
+    // Pooling: Startkapital liegt ausschliesslich bei `primary` (Haushaltswert).
+    freeAssets: 0,
     bvgInterestRate:
       data.bvg_interest_rate != null
         ? normalizeDbRate(data.bvg_interest_rate, BVG_MIN_INTEREST_RATE)
@@ -211,10 +225,8 @@ export function partnerDataToProfileForScenario(
         )
       : null,
     bvgCoordinatedSalaryOverride: data.bvg_coordinated_salary_override ?? null,
-    freeAssetsInterestRate:
-      data.free_assets_interest_rate != null
-        ? normalizeDbRate(data.free_assets_interest_rate, 0.04)
-        : null,
+    // Gemeinsame Haushaltsrendite (Partner spart in denselben Topf).
+    freeAssetsInterestRate: shared.freeAssetsReturnRate ?? null,
     annualSavingsToFreeAssets: Number(data.annual_savings_to_free_assets ?? 0),
     pillar3aDefaultReturnRate:
       shared.pillar3aDefaultReturnRate != null

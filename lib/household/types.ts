@@ -7,6 +7,7 @@ export type PersonRole = "primary" | "partner";
 
 /** Partner-Stammdaten (JSON in profiles.partner_profile) */
 export type PartnerProfileData = {
+  first_name?: string | null;
   birth_date?: string | null;
   gender?: "male" | "female" | null;
   employment_start_year?: number | null;

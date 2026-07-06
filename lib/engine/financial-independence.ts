@@ -387,7 +387,6 @@ function partnerOverridesForHouseholdFi(
 function evaluateHouseholdRetirement(
   household: HouseholdProfileForScenario,
   primaryEmploymentEndAge: number,
-  planningHorizonAge: number,
 ): {
   sustainable: boolean;
   endCapital: number;
@@ -488,18 +487,10 @@ export function calculateHouseholdFinancialIndependence(
   }
 
   let bestAge: number | null = null;
-  let bestMetrics = evaluateHouseholdRetirement(
-    household,
-    profileRetirementAge,
-    planningHorizonAge,
-  );
+  let bestMetrics = evaluateHouseholdRetirement(household, profileRetirementAge);
 
   for (let age = searchFrom; age <= searchTo; age++) {
-    const metrics = evaluateHouseholdRetirement(
-      household,
-      age,
-      planningHorizonAge,
-    );
+    const metrics = evaluateHouseholdRetirement(household, age);
     if (metrics.sustainable) {
       bestAge = age;
       bestMetrics = metrics;
@@ -511,7 +502,6 @@ export function calculateHouseholdFinancialIndependence(
     const illustration = evaluateHouseholdRetirement(
       household,
       profileRetirementAge,
-      planningHorizonAge,
     );
     const illustrationTimeline = buildHouseholdTimeline(
       illustration.householdResult,
@@ -531,9 +521,10 @@ export function calculateHouseholdFinancialIndependence(
   const yearsUntil = Math.max(0, bestAge - currentAge);
   const yearsEarlierThanPlanned =
     bestAge < profileRetirementAge ? profileRetirementAge - bestAge : null;
+  const primaryLabel = household.primary.firstName?.trim() || "Person 1";
 
   const explanation: string[] = [
-    `Erwerbsaufgabe Person 1 ab Alter ${bestAge}: Netto-Lebenshaltung (CHF ${formatSwissNumber(household.primary.annualRetirementExpenses ?? 0, true)}/J., heutige Kaufkraft) startet ab dem ersten Haushalts-Ruhestand mit Teuerung. In der Mischphase mindert der geschätzte Netto-Lohn des Partners die Entnahme; Steuern und Vorsorge laufen separat.`,
+    `Erwerbsaufgabe ${primaryLabel} ab Alter ${bestAge}: Netto-Lebenshaltung (CHF ${formatSwissNumber(household.primary.annualRetirementExpenses ?? 0, true)}/J., heutige Kaufkraft) startet ab dem ersten Haushalts-Ruhestand mit Teuerung. In der Mischphase mindert der geschätzte Netto-Lohn des Partners die Entnahme; Steuern und Vorsorge laufen separat.`,
     `Projektion bis Alter ${planningHorizonAge}: tiefster Haushaltsvermögensstand CHF ${formatSwissNumber(bestMetrics.minCapital, true)} (muss > 0 bleiben — ein hoher Tiefstand bedeutet grossen Puffer, nicht fehlende FI). Endvermögen CHF ${formatSwissNumber(bestMetrics.endCapital, true)}.`,
     `Monatliches Haushaltseinkommen am Planungshorizont: ca. ${formatCHF(bestMetrics.monthlyIncomeAtHorizon)}/Mt.`,
     "Annahmen: separate AHV/BVG/3a pro Person, 100 % BVG-Verrentung, Standard-3a-Bezugsplan. Kleine Renditeänderungen können bei aktivem 3a-Auto-Split zusätzliche Konten auslösen.",
@@ -547,7 +538,7 @@ export function calculateHouseholdFinancialIndependence(
 
   if (yearsEarlierThanPlanned != null && yearsEarlierThanPlanned > 0) {
     explanation.unshift(
-      `${yearsEarlierThanPlanned} Jahr${yearsEarlierThanPlanned === 1 ? "" : "e"} früher als das geplante Pensionierungsalter von Person 1 (${profileRetirementAge} J.).`,
+      `${yearsEarlierThanPlanned} Jahr${yearsEarlierThanPlanned === 1 ? "" : "e"} früher als das geplante Pensionierungsalter von ${primaryLabel} (${profileRetirementAge} J.).`,
     );
   }
 

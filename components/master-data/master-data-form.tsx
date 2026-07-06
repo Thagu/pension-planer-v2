@@ -11,6 +11,7 @@ import type { Pillar3aAccountRow } from "@/lib/pillar3a/accounts";
 
 export type ProfileRow = {
   updated_at?: string | null;
+  first_name?: string | null;
   birth_date: string | null;
   gender: string | null;
   employment_start_year: number | null;

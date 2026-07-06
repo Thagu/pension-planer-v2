@@ -125,6 +125,8 @@ export interface ScenarioOverrides {
 }
 
 export interface ProfileForScenario {
+  /** Vorname (ersetzt «Person 1/2»-Labels in der UI; optional). */
+  firstName?: string | null;
   birthDate: string;
   gender?: "male" | "female" | null;
   employmentStartYear?: number | null;

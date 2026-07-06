@@ -8,7 +8,6 @@ import {
 } from "@/components/charts/chart-legend";
 import type { ScenarioPensionResult } from "@/lib/engine";
 import { formatCHF } from "@/lib/engine";
-import { formatRatePercent } from "@/lib/format/numbers";
 
 const COLORS = [
   "hsl(var(--primary))",

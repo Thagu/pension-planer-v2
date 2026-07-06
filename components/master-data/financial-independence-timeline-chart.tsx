@@ -17,7 +17,7 @@ import {
   HouseholdCashflowBreakdown,
 } from "@/components/charts/household-cashflow-tooltip";
 import type { CombinedWealthYearProjection } from "@/lib/household/types";
-import { personLabel, PERSON1_COLOR, PERSON2_COLOR } from "@/lib/household/person-colors";
+import { PERSON1_COLOR, PERSON2_COLOR } from "@/lib/household/person-colors";
 import { resolveStableAxisMax } from "@/lib/charts/stable-domain";
 import {
   hasCapitalInjectionMarker,
@@ -87,11 +87,15 @@ export function FinancialIndependenceTimelineChart({
   profileRetirementAge,
   planningHorizonAge,
   independenceAge,
+  primaryLabel = "Person 1",
+  partnerLabel = "Person 2",
 }: {
   timeline: FinancialIndependenceTimeline;
   profileRetirementAge?: number;
   planningHorizonAge?: number;
   independenceAge?: number;
+  primaryLabel?: string;
+  partnerLabel?: string;
 }) {
   const {
     projection,
@@ -124,10 +128,10 @@ export function FinancialIndependenceTimelineChart({
       label:
         independenceAge != null
           ? householdMode
-            ? `FI P1 (${employmentEndAge} J.)`
+            ? `FI ${primaryLabel} (${employmentEndAge} J.)`
             : `FI (${employmentEndAge} J.)`
           : householdMode
-            ? `Erwerbsende P1 (${employmentEndAge} J.)`
+            ? `Erwerbsende ${primaryLabel} (${employmentEndAge} J.)`
             : `Erwerbsende (${employmentEndAge} J.)`,
       colorClass: "stroke-primary",
       dash: "4 3",
@@ -141,7 +145,7 @@ export function FinancialIndependenceTimelineChart({
     milestones.push({
       xAge: profileRetirementAge,
       label: householdMode
-        ? `Geplant P1 (${profileRetirementAge} J.)`
+        ? `Geplant ${primaryLabel} (${profileRetirementAge} J.)`
         : `Geplant (${profileRetirementAge} J.)`,
       colorClass: "stroke-muted-foreground/50",
       dash: "2 4",
@@ -152,7 +156,7 @@ export function FinancialIndependenceTimelineChart({
     milestones.push({
       xAge: bvgPensionStartAge,
       label: householdMode
-        ? `BVG P1 (${bvgPensionStartAge} J.)`
+        ? `BVG ${primaryLabel} (${bvgPensionStartAge} J.)`
         : `BVG (${bvgPensionStartAge} J.)`,
       colorClass: "stroke-[hsl(var(--chart-2))]",
       dash: "3 3",
@@ -163,7 +167,7 @@ export function FinancialIndependenceTimelineChart({
     milestones.push({
       xAge: ahvPensionStartAge,
       label: householdMode
-        ? `AHV P1 (${ahvPensionStartAge} J.)`
+        ? `AHV ${primaryLabel} (${ahvPensionStartAge} J.)`
         : `AHV (${ahvPensionStartAge} J.)`,
       colorClass: "stroke-[hsl(var(--chart-5))]",
       dash: "3 3",
@@ -187,7 +191,7 @@ export function FinancialIndependenceTimelineChart({
     milestones.push({
       xAge: planningHorizonAge,
       label: householdMode
-        ? `Horizont P1 (${planningHorizonAge} J.)`
+        ? `Horizont ${primaryLabel} (${planningHorizonAge} J.)`
         : `Horizont (${planningHorizonAge} J.)`,
       colorClass: "stroke-muted-foreground/30",
       dash: "2 6",
@@ -206,7 +210,7 @@ export function FinancialIndependenceTimelineChart({
     ) {
       milestones.push({
         xAge: partnerStopPrimaryAge,
-        label: `P2 Erwerbsende (${partnerEmploymentEndAge} J.)`,
+        label: `${partnerLabel} Erwerbsende (${partnerEmploymentEndAge} J.)`,
         colorClass: "stroke-violet-500/70",
         dash: "4 3",
       });
@@ -223,7 +227,7 @@ export function FinancialIndependenceTimelineChart({
       ) {
         milestones.push({
           xAge,
-          label: `P2 AHV (${partnerAhvPensionStartAge} J.)`,
+          label: `${partnerLabel} AHV (${partnerAhvPensionStartAge} J.)`,
           colorClass: "stroke-violet-500/50",
           dash: "3 3",
         });
@@ -241,7 +245,7 @@ export function FinancialIndependenceTimelineChart({
       ) {
         milestones.push({
           xAge,
-          label: `P2 BVG (${partnerBvgPensionStartAge} J.)`,
+          label: `${partnerLabel} BVG (${partnerBvgPensionStartAge} J.)`,
           colorClass: "stroke-violet-500/40",
           dash: "3 3",
         });
@@ -258,6 +262,8 @@ export function FinancialIndependenceTimelineChart({
       depletionAge={depletionAge}
       householdMode={householdMode}
       combinedDetail={combinedDetail}
+      primaryLabel={primaryLabel}
+      partnerLabel={partnerLabel}
     />
   );
 }
@@ -295,11 +301,15 @@ function YearTooltip({
   employmentEndAge,
   combinedRow,
   householdMode,
+  primaryLabel = "Person 1",
+  partnerLabel = "Person 2",
 }: {
   point: FreeAssetsYearProjection;
   employmentEndAge: number;
   combinedRow?: CombinedWealthYearProjection;
   householdMode?: boolean;
+  primaryLabel?: string;
+  partnerLabel?: string;
 }) {
   const capitalDelta = point.capitalEnd - point.capitalStart;
   const phase =
@@ -316,7 +326,7 @@ function YearTooltip({
 
   const ageHeading =
     householdMode && combinedRow?.partnerAge != null
-      ? `${personLabel("primary")} ${point.age} J. · ${personLabel("partner")} ${combinedRow.partnerAge} J. · ${point.year}`
+      ? `${primaryLabel} ${point.age} J. · ${partnerLabel} ${combinedRow.partnerAge} J. · ${point.year}`
       : `Alter ${point.age} · ${point.year}`;
 
   return (
@@ -353,7 +363,7 @@ function YearTooltip({
                 <>
                   {combinedRow.primaryBvgCapitalInjection > 0 ? (
                     <TooltipRow
-                      label={`BVG Kapitalbezug (${personLabel("primary")})`}
+                      label={`BVG Kapitalbezug (${primaryLabel})`}
                       value={`+${formatCHF(combinedRow.primaryBvgCapitalInjection)}`}
                       tone="positive"
                       color={PERSON1_COLOR}
@@ -361,7 +371,7 @@ function YearTooltip({
                   ) : null}
                   {combinedRow.partnerBvgCapitalInjection > 0 ? (
                     <TooltipRow
-                      label={`BVG Kapitalbezug (${personLabel("partner")})`}
+                      label={`BVG Kapitalbezug (${partnerLabel})`}
                       value={`+${formatCHF(combinedRow.partnerBvgCapitalInjection)}`}
                       tone="positive"
                       color={PERSON2_COLOR}
@@ -384,7 +394,7 @@ function YearTooltip({
                 <>
                   {combinedRow.primaryPillar3aCapitalInjection > 0 ? (
                     <TooltipRow
-                      label={`Säule 3a Bezug (${personLabel("primary")})`}
+                      label={`Säule 3a Bezug (${primaryLabel})`}
                       value={`+${formatCHF(combinedRow.primaryPillar3aCapitalInjection)}`}
                       tone="positive"
                       color={PILLAR3A_INJECTION_COLOR}
@@ -392,7 +402,7 @@ function YearTooltip({
                   ) : null}
                   {combinedRow.partnerPillar3aCapitalInjection > 0 ? (
                     <TooltipRow
-                      label={`Säule 3a Bezug (${personLabel("partner")})`}
+                      label={`Säule 3a Bezug (${partnerLabel})`}
                       value={`+${formatCHF(combinedRow.partnerPillar3aCapitalInjection)}`}
                       tone="positive"
                       color={PERSON2_COLOR}
@@ -418,7 +428,7 @@ function YearTooltip({
             ) : null}
             {!householdMode && (combinedRow?.survivorWealthTransfer ?? 0) > 0 ? (
               <TooltipRow
-                label={`Erbschaft ${personLabel("primary")} → ${personLabel("partner")}`}
+                label={`Erbschaft ${primaryLabel} → ${partnerLabel}`}
                 value={`+${formatCHF(combinedRow!.survivorWealthTransfer ?? 0)}`}
                 tone="positive"
                 color={PERSON2_COLOR}
@@ -466,6 +476,8 @@ function FinancialIndependenceTimelineChartInner({
   depletionAge,
   householdMode,
   combinedDetail,
+  primaryLabel,
+  partnerLabel,
 }: {
   projection: FreeAssetsYearProjection[];
   employmentEndAge: number;
@@ -474,6 +486,8 @@ function FinancialIndependenceTimelineChartInner({
   depletionAge: number | null;
   householdMode?: boolean;
   combinedDetail?: CombinedWealthYearProjection[];
+  primaryLabel: string;
+  partnerLabel: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const capitalAxisMaxRef = useRef<number | null>(null);
@@ -618,7 +632,7 @@ function FinancialIndependenceTimelineChartInner({
   });
 
   const chartSubtitle = householdMode
-    ? "X-Achse: Alter Person 1; darunter Person 2 am selben Kalenderjahr. Netto-Lebenshaltung startet ab dem ersten Haushalts-Ruhestand (mit Teuerung); in der Mischphase mindert der Lohn des noch erwerbstätigen Partners die Entnahme."
+    ? `X-Achse: Alter ${primaryLabel} (P1); darunter ${partnerLabel} (P2) am selben Kalenderjahr. Netto-Lebenshaltung startet ab dem ersten Haushalts-Ruhestand (mit Teuerung); in der Mischphase mindert der Lohn des noch erwerbstätigen Partners die Entnahme.`
     : "Vermögensverlauf und jährliche Cashflows. Netto-Lebenshaltung startet ab Erwerbsaufgabe (mit Teuerung). Vertikale Linien markieren Erwerbsaufgabe, Rentenbeginn und ggf. Vermögenserschöpfung.";
 
   return (
@@ -882,6 +896,8 @@ function FinancialIndependenceTimelineChartInner({
             point={hovered}
             employmentEndAge={employmentEndAge}
             householdMode={householdMode}
+            primaryLabel={primaryLabel}
+            partnerLabel={partnerLabel}
             combinedRow={
               householdMode
                 ? combinedDetail?.find((row) => row.year === hovered.year)

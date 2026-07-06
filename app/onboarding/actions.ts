@@ -70,7 +70,10 @@ export async function completeOnboarding(
   }
 
   if (!state.primary.birthDate.trim()) {
-    return { ok: false, error: "Geburtsdatum Person 1 fehlt." };
+    return {
+      ok: false,
+      error: `Geburtsdatum ${state.primary.firstName.trim() || "Person 1"} fehlt.`,
+    };
   }
 
   const formData = buildFormDataFromOnboardingState(state);

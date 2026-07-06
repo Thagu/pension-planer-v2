@@ -11,7 +11,6 @@ import { formatCHF } from "@/lib/engine";
 import {
   PERSON1_COLOR,
   PERSON2_COLOR,
-  personLabel,
 } from "@/lib/household/person-colors";
 
 const WIDTH = 640;
@@ -366,9 +365,9 @@ function CombinedWealthChartInteractive({
       {hover ? (
         <div className="rounded-md border bg-background/80 px-3 py-2 text-xs">
           <p>
-            Alter Person 1: <strong>{hover.primaryAge}</strong>
+            Alter {primaryLabel}: <strong>{hover.primaryAge}</strong>
             {hover.partnerAge != null ? (
-              <> · Person 2: <strong>{hover.partnerAge}</strong></>
+              <> · {partnerLabel}: <strong>{hover.partnerAge}</strong></>
             ) : null}
           </p>
           <p>
@@ -391,7 +390,7 @@ function CombinedWealthChartInteractive({
               {hover.primaryBvgCapitalInjection > 0 ? (
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: PRIMARY_COLOR }}>
-                    BVG Bezug {personLabel("primary")}
+                    BVG Bezug {primaryLabel}
                   </dt>
                   <dd className="font-mono tabular-nums">
                     +{formatCHF(hover.primaryBvgCapitalInjection)}
@@ -401,7 +400,7 @@ function CombinedWealthChartInteractive({
               {hover.partnerBvgCapitalInjection > 0 ? (
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: PARTNER_COLOR }}>
-                    BVG Bezug {personLabel("partner")}
+                    BVG Bezug {partnerLabel}
                   </dt>
                   <dd className="font-mono tabular-nums">
                     +{formatCHF(hover.partnerBvgCapitalInjection)}
@@ -411,7 +410,7 @@ function CombinedWealthChartInteractive({
               {hover.primaryPillar3aCapitalInjection > 0 ? (
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: PILLAR3A_COLOR }}>
-                    3a Bezug {personLabel("primary")}
+                    3a Bezug {primaryLabel}
                   </dt>
                   <dd className="font-mono tabular-nums">
                     +{formatCHF(hover.primaryPillar3aCapitalInjection)}
@@ -421,7 +420,7 @@ function CombinedWealthChartInteractive({
               {hover.partnerPillar3aCapitalInjection > 0 ? (
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: PILLAR3A_COLOR }}>
-                    3a Bezug {personLabel("partner")}
+                    3a Bezug {partnerLabel}
                   </dt>
                   <dd className="font-mono tabular-nums">
                     +{formatCHF(hover.partnerPillar3aCapitalInjection)}
@@ -431,7 +430,7 @@ function CombinedWealthChartInteractive({
               {showSplit && (hover.survivorWealthTransfer ?? 0) > 0 ? (
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: PARTNER_COLOR }}>
-                    Erbschaft P1 → P2
+                    Erbschaft {primaryLabel} → {partnerLabel}
                   </dt>
                   <dd className="font-mono tabular-nums">
                     +{formatCHF(hover.survivorWealthTransfer ?? 0)}
@@ -443,8 +442,8 @@ function CombinedWealthChartInteractive({
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          X-Achse: Alter Person 1 · Markierungen: Kapitalbezüge (BVG, 3a) und
-          Erbschaft beim Planungshorizont von Person 1
+          X-Achse: Alter {primaryLabel} · Markierungen: Kapitalbezüge (BVG, 3a) und
+          Erbschaft beim Planungshorizont von {primaryLabel}
         </p>
       )}
     </div>

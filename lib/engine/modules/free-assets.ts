@@ -147,7 +147,6 @@ export function calculateFreeAssetsPension(input: FreeAssetsInput): FreeAssetsRe
     taxSettings,
     workloadReductions = [],
     referenceSalaryBrutto = 0,
-    annualPillar3aContribution = 0,
     inflationRate = 0,
   } = input;
 

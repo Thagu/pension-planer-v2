@@ -3,7 +3,7 @@
 > **Version:** 3.0 (June 2026)  
 > **Language:** English  
 > **Companion docs:** [requirements.md](./requirements.md) · [architecture.md](./architecture.md) · [user_stories.md](./user_stories.md)  
-> **Source of truth:** `supabase/migrations/001`–`012` + TypeScript types in `lib/engine/`, `lib/household/`
+> **Source of truth:** `supabase/migrations/001`–`015` + TypeScript types in `lib/engine/`, `lib/household/`
 
 ---
 
@@ -15,6 +15,7 @@
 | JSON flexibility | Scenario overrides and partner profile avoid frequent migrations |
 | Rate storage | DB stores decimals (0.068); UI often shows percent (6.8); normalize on read |
 | Couple mode | Partner is JSON on `profiles.partner_profile`, not a separate user |
+| Free assets pooling | Free assets (start capital + return + inheritance) are **one household value** on `primary`; the partner holds `free_assets = 0`. Only the savings rate (`annual_savings_to_free_assets`) stays per person and flows into the shared pool until each person's employment end. |
 | Engine types ≠ DB rows | `loadProfileForScenario()` maps DB → `ProfileForScenario` |
 
 ---
@@ -80,6 +81,17 @@ partner_profile jsonb                 -- PartnerProfileData (see §4)
 
 -- 012_inflation_rate.sql
 inflation_rate numeric(8,6)           -- decimal e.g. 0.02; null = no inflation in engine
+
+-- 013_annual_survivor_expenses.sql
+annual_survivor_expenses numeric(14,2) -- household expenses after first death (couple)
+
+-- 014_onboarding_completed.sql
+onboarding_completed_at timestamptz
+onboarding_skipped_at timestamptz
+
+-- 015_household_free_assets.sql (data migration, idempotent)
+--   couple profiles: free_assets += partner_profile->>'free_assets'; partner value → 0
+--   free assets become one household value (see §4.1)
 ```
 
 **Note:** `email` is **not** stored on `profiles`; it lives on `auth.users` only (v1 datamodel incorrectly showed email on profile).
@@ -226,16 +238,32 @@ type PartnerProfileData = {
   retirement_age?: number | null;
   current_salary_brutto?: number | null;
   bvg_current_capital?: number | null;
-  free_assets?: number | null;
+  free_assets?: number | null;               // pooled → always 0 (see below)
   bvg_interest_rate?: number | null;
   bvg_conversion_rate?: number | null;
   bvg_contribution_rates?: Record<string, number> | null;
   bvg_coordinated_salary_override?: number | null;
-  free_assets_interest_rate?: number | null;
-  annual_savings_to_free_assets?: number | null;
+  free_assets_interest_rate?: number | null; // pooled → ignored; household rate used
+  annual_savings_to_free_assets?: number | null; // per person, into shared pool
   workload_reductions?: WorkloadReduction[] | null;
 };
 ```
+
+**Free assets pooling (couple mode).** Free assets are a single household value. The
+household start capital lives on `profiles.free_assets` and the return rate on
+`profiles.free_assets_interest_rate` (both edited once in the master-data "Planung" tab
+and the wizard "Planung" step). When the partner `ProfileForScenario` is assembled in
+[`partnerDataToProfileForScenario`](../lib/household/partner-profile.ts), `freeAssets` is
+forced to `0` and `freeAssetsInterestRate` is set to the household rate (`primary`'s rate,
+passed as `shared.freeAssetsReturnRate`). Because both persons then use the same rate, the
+engine's `primary + partner` sum in `combineYearRows` is mathematically identical to one
+shared pot. A scenario **return-rate override** is propagated to the partner as well (so the
+whole pool reacts uniformly), while the **value override** stays on `primary` only to avoid
+double-counting the capital. The per-person `annual_savings_to_free_assets` keeps flowing into
+this pool until each person's own employment end (incl. workload reductions).
+
+Migration `015_household_free_assets.sql` folds any legacy partner `free_assets` into
+`profiles.free_assets` and resets the partner value to `0` (idempotent).
 
 ### 4.2 `HouseholdProfileForScenario`
 
@@ -529,3 +557,4 @@ Old `TEST:` scenarios for the target user are deleted before re-insert. Requires
 | v1 | 2024 | German; YearlyData; single 3a; inflation in schema; retirementGap |
 | v2 | May 2026 | English; actual migrations 001–011; household types; legacy types noted |
 | v3 | June 2026 | Migration 012 inflation_rate; tax override columns removed (008); seed fixtures documented |
+| v4 | July 2026 | Migrations 013–015; free assets pooled to one household value (015), savings stay per person; onboarding flags (014) |

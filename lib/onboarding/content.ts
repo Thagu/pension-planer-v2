@@ -30,7 +30,7 @@ export const SIMPLIFICATIONS = {
       },
       {
         label: "Freies Vermögen",
-        text: "Wächst durch Sparquote und Rendite bis zur Pensionierung.",
+        text: "Ein gemeinsamer Haushalts-Topf: Startkapital und Rendite erfassen Sie einmal, die Sparquote pro Person fliesst bis zu deren Erwerbsaufgabe hinein.",
       },
     ],
   },
@@ -104,22 +104,63 @@ export const SIMPLIFICATIONS = {
     ],
   },
   bvgDefaults: {
-    title: "BVG-Vereinfachungen",
+    title: "BVG-Details",
+    intro: "Die Werte sind mit gesetzlichen Standardwerten vorbelegt — anpassen nur, wenn Ihr Pensionskassen-Ausweis abweicht.",
     items: [
       {
-        label: "Standardwerte",
-        text: "Gesetzlicher Mindestzinssatz und üblicher Umwandlungssatz, wenn Sie nichts anderes eingeben.",
+        label: "Zinssatz & Umwandlungssatz",
+        text: "Vorbelegt mit BVG-Minimum bzw. obligatorischem Umwandlungssatz. Ihre Kasse kann höhere Werte verwenden.",
+      },
+      {
+        label: "Koordinierter Lohn",
+        text: "Leer lassen = automatische Berechnung nach BVG. Nur überschreiben, wenn Ihr Ausweis einen abweichenden Betrag ausweist.",
       },
       {
         label: "Kapital vs. Rente",
-        text: "Kapitalbezug oder Verrentung planen Sie später im Szenario — nicht zwingend in den Stammdaten.",
+        text: "Kapitalbezug oder Verrentung planen Sie später im Szenario — nicht in den Stammdaten.",
+      },
+    ],
+  },
+  pillar3aBasics: {
+    title: "Säule 3a",
+    intro: "Erfassen Sie ein oder mehrere 3a-Konten mit Kapital, jährlicher Einzahlung und Rendite.",
+    items: [
+      {
+        label: "Mehrere Konten",
+        text: "Gestaffelte Konten helfen später beim steueroptimierten Bezug in verschiedenen Jahren.",
+      },
+      {
+        label: "Einzahlung",
+        text: "Der maximal abzugsfähige Betrag wird vorgeschlagen; die Aufteilung auf Konten ist frei.",
+      },
+      {
+        label: "Bezug später",
+        text: "Den gestaffelten Bezug (Jahr pro Konto) planen Sie im Szenario — hier zählt der Aufbau.",
+      },
+    ],
+  },
+  scenarioVariants: {
+    title: "Varianten & Ereignisse im Szenario",
+    intro: "Ihr erstes Szenario startet ohne Overrides — identisch zu den Stammdaten. Danach probieren Sie Varianten aus:",
+    items: [
+      {
+        label: "Kapitalbezug BVG / 3a",
+        text: "Ganz oder teilweise Kapital beziehen statt verrenten — als farbige Punkte in den Grafiken sichtbar.",
+      },
+      {
+        label: "Erbschaft / Schenkung",
+        text: "Einmalige Zuflüsse in einem bestimmten Jahr erfassen — sie erscheinen als blaue Punkte in «Vermögensentwicklung» und «FI-Grafik».",
+      },
+      {
+        label: "Frühere Pensionierung",
+        text: "Pensionierungsalter oder Ausgaben verändern, ohne die Stammdaten zu überschreiben.",
       },
     ],
   },
   workload: {
     title: "Teilpensionierung",
     body:
-      "Reduziertes Arbeitspensum skaliert Lohn, BVG-Beiträge und Sparquote proportional — kein detailliertes Netto-Lohnmodell pro Pensumstufe.",
+      "Reduziertes Arbeitspensum skaliert Lohn, BVG-Beiträge und Sparquote proportional — kein detailliertes Netto-Lohnmodell pro Pensumstufe. Pensums-Reduktionen erfassen Sie später unter Stammdaten.",
   },
 } as const satisfies Record<string, SimplificationNote>;
 
@@ -130,6 +171,7 @@ export type WizardStepId =
   | "person1"
   | "wealth"
   | "bvg"
+  | "pillar3a"
   | "planning"
   | "partner"
   | "tax"
@@ -166,23 +208,30 @@ export const WIZARD_STEPS: WizardStep[] = [
   },
   {
     id: "wealth",
-    title: "Person 1 — Vermögen",
+    title: "Person 1 — Sparquote",
+    subtitle: "Jährlicher Zufluss ins gemeinsame freie Vermögen.",
     simplification: SIMPLIFICATIONS.savingsVsSalary,
   },
   {
     id: "bvg",
-    title: "Person 1 — BVG (grob)",
+    title: "Person 1 — BVG",
     simplification: SIMPLIFICATIONS.bvgDefaults,
   },
   {
+    id: "pillar3a",
+    title: "Person 1 — Säule 3a",
+    simplification: SIMPLIFICATIONS.pillar3aBasics,
+  },
+  {
     id: "planning",
-    title: "Planung & Ausgaben",
+    title: "Planung & Vermögen",
+    subtitle: "Gemeinsames freies Vermögen, Ausgaben und Horizont.",
     simplification: SIMPLIFICATIONS.netLivingExpenses,
   },
   {
     id: "partner",
     title: "Person 2",
-    subtitle: "Partner-Stammdaten (Paarmodus).",
+    subtitle: "Partner-Stammdaten inkl. Vermögen, BVG und Säule 3a (Paarmodus).",
   },
   {
     id: "tax",
@@ -198,6 +247,7 @@ export const WIZARD_STEPS: WizardStep[] = [
     id: "scenario",
     title: "Erstes Szenario",
     subtitle: "Benennen und speichern — danach können Sie Varianten ausprobieren.",
+    simplification: SIMPLIFICATIONS.scenarioVariants,
   },
 ];
 

@@ -11,7 +11,6 @@ import {
   formatCHF,
   type ScenarioPensionResult,
 } from "@/lib/engine";
-import { personLabel } from "@/lib/household/person-colors";
 
 const WIDTH = 640;
 const HEIGHT = 280;
@@ -57,10 +56,22 @@ function freeAssetsIncomeAtAge(
   return row.interest + row.annualWithdrawal;
 }
 
+const NO_INCOME: PersonIncomeBreakdown = {
+  ahv: 0,
+  bvg: 0,
+  freeAssets: 0,
+  total: 0,
+};
+
 function personIncomeAtAge(
   result: ScenarioPensionResult,
   age: number,
+  deceasedAtAge?: number,
 ): PersonIncomeBreakdown {
+  // Ab dem Tod (Planungshorizont) kein Einkommen mehr – konsistent zur Engine,
+  // die die Jahreszeile einer Person ab `age >= horizonAge` nullt.
+  if (deceasedAtAge != null && age >= deceasedAtAge) return NO_INCOME;
+
   const ahv =
     age >= result.ahv.pensionStartAge ? result.ahv.yearlyPension : 0;
   const bvg =
@@ -99,13 +110,22 @@ export function buildVorsorgeIncomeTimeline(
   const primaryEndYear =
     currentYear + Math.max(0, planningHorizonAge - currentPrimaryAge);
 
+  const hasPartner = Boolean(partner && partnerBirthDate);
+  // Nach dem Planungshorizont gilt eine Person als verstorben (analog Engine:
+  // `resolvePersonProjection` nullt ab `age >= horizonAge`). Im Einzelmodus
+  // endet die Projektion am Horizont ohne Todesfall – daher dort kein Cap.
+  const partnerHorizon = hasPartner
+    ? (partnerPlanningHorizonAge ?? planningHorizonAge)
+    : undefined;
+  const primaryDeceasedAtAge = hasPartner ? planningHorizonAge : undefined;
+
   let endYear = primaryEndYear;
-  if (partner && partnerBirthDate) {
-    const partnerHorizon = partnerPlanningHorizonAge ?? planningHorizonAge;
+  if (hasPartner && partnerBirthDate) {
     const currentPartnerAge = calculateAge(partnerBirthDate);
     endYear = Math.max(
       endYear,
-      currentYear + Math.max(0, partnerHorizon - currentPartnerAge),
+      currentYear +
+        Math.max(0, (partnerHorizon ?? planningHorizonAge) - currentPartnerAge),
     );
   }
 
@@ -116,10 +136,14 @@ export function buildVorsorgeIncomeTimeline(
       partner && partnerBirthDate
         ? ageAtCalendarYear(partnerBirthDate, year)
         : null;
-    const primaryIncome = personIncomeAtAge(primary, primaryAge);
+    const primaryIncome = personIncomeAtAge(
+      primary,
+      primaryAge,
+      primaryDeceasedAtAge,
+    );
     const partnerIncome =
       partner && partnerAge != null
-        ? personIncomeAtAge(partner, partnerAge)
+        ? personIncomeAtAge(partner, partnerAge, partnerHorizon)
         : null;
     const household = sumHouseholdIncome(primaryIncome, partnerIncome);
 
@@ -179,15 +203,16 @@ function TooltipRow({
 
 function PersonIncomeTooltip({
   role,
+  label,
   age,
   income,
 }: {
   role: "primary" | "partner";
+  label: string;
   age: number;
   income: PersonIncomeBreakdown;
 }) {
   const color = role === "primary" ? VORSORGE_P1_LINE : VORSORGE_P2_LINE;
-  const label = personLabel(role);
 
   return (
     <div className="space-y-1">
@@ -233,6 +258,8 @@ type Props = {
   partner?: ScenarioPensionResult | null;
   partnerBirthDate?: string | null;
   partnerPlanningHorizonAge?: number;
+  primaryLabel?: string;
+  partnerLabel?: string;
 };
 
 export function VorsorgeIncomeTimelineChart({
@@ -242,6 +269,8 @@ export function VorsorgeIncomeTimelineChart({
   partner = null,
   partnerBirthDate = null,
   partnerPlanningHorizonAge,
+  primaryLabel = "Person 1",
+  partnerLabel = "Person 2",
 }: Props) {
   const hasPartner = partner != null && partnerBirthDate != null;
 
@@ -281,6 +310,8 @@ export function VorsorgeIncomeTimelineChart({
       partner={partner}
       hasPartner={hasPartner}
       showHouseholdTotalLine={hasPartner}
+      primaryLabel={primaryLabel}
+      partnerLabel={partnerLabel}
     />
   );
 }
@@ -291,12 +322,16 @@ function VorsorgeIncomeTimelineChartInner({
   partner,
   hasPartner,
   showHouseholdTotalLine,
+  primaryLabel,
+  partnerLabel,
 }: {
   timeline: VorsorgeIncomeYear[];
   primary: ScenarioPensionResult;
   partner: ScenarioPensionResult | null;
   hasPartner: boolean;
   showHouseholdTotalLine: boolean;
+  primaryLabel: string;
+  partnerLabel: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -401,14 +436,14 @@ function VorsorgeIncomeTimelineChartInner({
         items={[
           {
             id: "primary",
-            label: `${personLabel("primary")}: ${formatCHF(lastRow?.primary.total ?? 0)}/J.`,
+            label: `${primaryLabel}: ${formatCHF(lastRow?.primary.total ?? 0)}/J.`,
             color: VORSORGE_P1_LINE,
           },
           ...(hasPartner
             ? [
                 {
                   id: "partner",
-                  label: `${personLabel("partner")}: ${formatCHF(lastRow?.partner?.total ?? 0)}/J.`,
+                  label: `${partnerLabel}: ${formatCHF(lastRow?.partner?.total ?? 0)}/J.`,
                   color: VORSORGE_P2_LINE,
                 },
               ]
@@ -474,7 +509,7 @@ function VorsorgeIncomeTimelineChartInner({
             textAnchor="middle"
             className="fill-muted-foreground text-[10px]"
           >
-            Alter Person 1
+            Alter {primaryLabel}
           </text>
 
           {[...milestoneAges.keys()].map((age) => (
@@ -568,9 +603,9 @@ function VorsorgeIncomeTimelineChartInner({
       {hover ? (
         <div className="rounded-md border bg-background/80 px-3 py-2 text-xs">
           <p className="font-medium text-foreground">
-            {hover.year} · Alter Person 1: {hover.primaryAge}
+            {hover.year} · Alter {primaryLabel}: {hover.primaryAge}
             {hover.partnerAge != null ? (
-              <> · Person 2: {hover.partnerAge}</>
+              <> · {partnerLabel}: {hover.partnerAge}</>
             ) : null}
           </p>
           <div
@@ -578,12 +613,14 @@ function VorsorgeIncomeTimelineChartInner({
           >
             <PersonIncomeTooltip
               role="primary"
+              label={primaryLabel}
               age={hover.primaryAge}
               income={hover.primary}
             />
             {hasPartner && hover.partner ? (
               <PersonIncomeTooltip
                 role="partner"
+                label={partnerLabel}
                 age={hover.partnerAge ?? 0}
                 income={hover.partner}
               />
@@ -622,10 +659,10 @@ function VorsorgeIncomeTimelineChartInner({
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Jährliches Einkommen (AHV, BVG, freies Vermögen) · Person 1:{" "}
+          Jährliches Einkommen (AHV, BVG, freies Vermögen) · {primaryLabel}:{" "}
           {formatCHF(lastRow?.primary.total ?? 0)}/J. ·{" "}
           {hasPartner ? (
-            <>Person 2: {formatCHF(lastRow?.partner?.total ?? 0)}/J. · </>
+            <>{partnerLabel}: {formatCHF(lastRow?.partner?.total ?? 0)}/J. · </>
           ) : null}
           Total: {formatCHF(lastRow?.household.total ?? 0)}/J. · Details per Hover
         </p>

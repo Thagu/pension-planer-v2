@@ -24,7 +24,8 @@ import { CHF_STEP } from "@/components/shared/numeric-steps";
 import { ChfStepperInput } from "@/components/shared/stepper-inputs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatCHF, normalizeWorkloadReductions, type HouseholdPensionResult, type ProfileForScenario, type ScenarioPensionResult } from "@/lib/engine";
+import { formatCHF, type HouseholdPensionResult, type ProfileForScenario, type ScenarioPensionResult } from "@/lib/engine";
+import { personLabel } from "@/lib/household/person-colors";
 import type { HouseholdProfileForScenario } from "@/lib/household/types";
 import type { AhvOverrideState } from "@/components/scenarios/scenario-ahv-section";
 import type { BvgOverrideState } from "@/components/scenarios/scenario-bvg-section";
@@ -102,8 +103,6 @@ type ScenarioFormTabsProps = {
   setUsePartnerWorkloadOverride: (v: boolean) => void;
   partnerWorkloadReductions: WorkloadReduction[];
   setPartnerWorkloadReductions: (v: WorkloadReduction[]) => void;
-  resolvedPrimaryWorkload: WorkloadReduction[];
-  resolvedPartnerWorkload: WorkloadReduction[];
   useFreeAssetsValueOverride: boolean;
   setUseFreeAssetsValueOverride: (v: boolean) => void;
   freeAssetsValueOverride: string;
@@ -177,8 +176,6 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
     setUsePartnerWorkloadOverride,
     partnerWorkloadReductions,
     setPartnerWorkloadReductions,
-    resolvedPrimaryWorkload,
-    resolvedPartnerWorkload,
     useFreeAssetsValueOverride,
     setUseFreeAssetsValueOverride,
     freeAssetsValueOverride,
@@ -190,9 +187,14 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
     PercentInput,
   } = props;
 
+  const primaryLabel = personLabel("primary", profile.firstName);
+  const partnerLabel = personLabel("partner", partnerProfile?.firstName);
+
   const personsContent = (
     <HouseholdSplitLayout
       planningMode={isCouple ? "couple" : "single"}
+      leftLabel={primaryLabel}
+      rightLabel={partnerLabel}
       left={
         <ScenarioPersonPanel
           person="primary"
@@ -230,6 +232,8 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
     isCouple && partnerProfile ? (
       <HouseholdSplitLayout
         planningMode="couple"
+        leftLabel={primaryLabel}
+        rightLabel={partnerLabel}
         left={
           <ScenarioAhvSection
             embedded
@@ -273,6 +277,8 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
     isCouple && partnerProfile && partnerResult && partnerProfileDefaults ? (
       <HouseholdSplitLayout
         planningMode="couple"
+        leftLabel={primaryLabel}
+        rightLabel={partnerLabel}
         left={
           <ScenarioBvgSection
             embedded
@@ -320,6 +326,8 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
     isCouple && partnerProfile && partnerResult ? (
       <HouseholdSplitLayout
         planningMode="couple"
+        leftLabel={primaryLabel}
+        rightLabel={partnerLabel}
         left={
           <ScenarioPillar3aSection
             embedded
@@ -436,6 +444,8 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
                   partnerBirthDate={partnerProfile?.birthDate}
                   primaryHorizonAge={profile.planningHorizonAge ?? 95}
                   partnerHorizonAge={partnerProfile?.planningHorizonAge ?? 95}
+                  primaryLabel={primaryLabel}
+                  partnerLabel={partnerLabel}
                 />
               ) : (
                 <Pillar3aProjectionChart result={result.pillar3a} />
@@ -446,17 +456,19 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
         {
           value: "free-assets",
           label: "Vermögen",
-          description:
-            "Freies Vermögen: Verzinsung bis Pensionierung, danach Entnahmen abzgl. Renten.",
+          description: isCouple
+            ? "Gemeinsames freies Vermögen (Haushalt): Verzinsung bis Pensionierung, danach Entnahmen abzgl. Renten."
+            : "Freies Vermögen: Verzinsung bis Pensionierung, danach Entnahmen abzgl. Renten.",
           content: (
             <>
               <ProfileInheritanceNote>
-                Startvermögen und Rendite werden aus dem Profil übernommen. Nur bei
-                Abweichungen die entsprechende Checkbox aktivieren.
+                {isCouple
+                  ? "Startvermögen und Rendite gelten für den ganzen Haushalt und werden aus dem Profil übernommen. Nur bei Abweichungen die entsprechende Checkbox aktivieren."
+                  : "Startvermögen und Rendite werden aus dem Profil übernommen. Nur bei Abweichungen die entsprechende Checkbox aktivieren."}
               </ProfileInheritanceNote>
               <ProfileDefaultsPanel>
                 <ProfileDefaultItem
-                  label="Freies Vermögen"
+                  label={isCouple ? "Freies Vermögen (Haushalt)" : "Freies Vermögen"}
                   value={formatCHF(profile.freeAssets)}
                 />
                 <ProfileDefaultItem
@@ -469,7 +481,11 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
                 id="use-free-assets-value"
                 checked={useFreeAssetsValueOverride}
                 onCheckedChange={setUseFreeAssetsValueOverride}
-                label="Vermögensbetrag vom Profil abweichen"
+                label={
+                  isCouple
+                    ? "Vermögensbetrag (Haushalt) vom Profil abweichen"
+                    : "Vermögensbetrag vom Profil abweichen"
+                }
                 profileValue={formatCHF(profile.freeAssets)}
               >
                 <ChfStepperInput
@@ -477,7 +493,7 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
                   value={freeAssetsValueOverride}
                   onChange={handleFreeAssetsChange}
                   step={CHF_STEP.wealth}
-                  ariaLabel="Freies Vermögen"
+                  ariaLabel={isCouple ? "Freies Vermögen (Haushalt)" : "Freies Vermögen"}
                 />
               </ScenarioOverrideRow>
               <ScenarioOverrideRow
@@ -498,12 +514,12 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
         {
           value: "inheritance",
           label: "Erbschaft",
-          description:
-            "Einmaliger Vermögenszufluss ins freie Haushaltsvermögen. Alter bezieht sich auf Person 1.",
+          description: `Einmaliger Vermögenszufluss ins freie Haushaltsvermögen. Alter bezieht sich auf ${primaryLabel}.`,
           content: (
             <InheritanceEventsCard
               events={inheritanceDrafts}
               onChange={setInheritanceDrafts}
+              primaryLabel={primaryLabel}
             />
           ),
         },
@@ -530,12 +546,18 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
                   partnerPlanningHorizonAge={
                     partnerProfile?.planningHorizonAge ?? undefined
                   }
+                  primaryLabel={primaryLabel}
+                  partnerLabel={partnerLabel}
                 />
               </div>
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold">Rentenvorschau</h3>
                 {householdResult ? (
-                  <HouseholdPensionSummary result={householdResult} />
+                  <HouseholdPensionSummary
+                    result={householdResult}
+                    primaryLabel={primaryLabel}
+                    partnerLabel={partnerLabel}
+                  />
                 ) : (
                   <PensionSummary
                     result={result}

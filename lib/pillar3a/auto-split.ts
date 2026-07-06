@@ -179,7 +179,7 @@ export function simulatePillar3aAccounts(
   }
 
   const prefix = autoSplit.namePrefix.trim() || "3a-Konto";
-  let accounts: SimAccount[] = inputAccounts.map((account) => ({
+  const accounts: SimAccount[] = inputAccounts.map((account) => ({
     id: account.id,
     name: account.name,
     capital: Math.max(0, parseDbAmount(account.currentCapital)),

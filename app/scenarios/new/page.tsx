@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Suspense } from "react";
 
 import { PAGE_SHELL_WIDE } from "@/components/layout/page-shell";

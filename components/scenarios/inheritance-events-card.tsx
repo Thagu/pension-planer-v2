@@ -48,9 +48,11 @@ export function inheritanceEventsFromDrafts(
 export function InheritanceEventsCard({
   events,
   onChange,
+  primaryLabel = "Person 1",
 }: {
   events: InheritanceEventDraft[];
   onChange: (events: InheritanceEventDraft[]) => void;
+  primaryLabel?: string;
 }) {
   const update = (index: number, patch: Partial<InheritanceEventDraft>) => {
     onChange(
@@ -79,7 +81,9 @@ export function InheritanceEventsCard({
               className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[1fr_1fr_auto]"
             >
               <div className="grid gap-2">
-                <Label htmlFor={`inheritance-age-${index}`}>Alter Person 1</Label>
+                <Label htmlFor={`inheritance-age-${index}`}>
+                  Alter {primaryLabel}
+                </Label>
                 <NumberStepperInput
                   id={`inheritance-age-${index}`}
                   value={event.atAge}
@@ -88,7 +92,7 @@ export function InheritanceEventsCard({
                   min={0}
                   max={110}
                   placeholder="55"
-                  ariaLabel="Alter Person 1"
+                  ariaLabel={`Alter ${primaryLabel}`}
                 />
               </div>
               <div className="grid gap-2">

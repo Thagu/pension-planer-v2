@@ -11,7 +11,6 @@ import { formatCHF } from "@/lib/engine";
 import {
   PERSON1_COLOR,
   PERSON2_COLOR,
-  personLabel,
 } from "@/lib/household/person-colors";
 
 const WIDTH = 640;
@@ -36,6 +35,8 @@ type Props = {
   partnerBirthDate?: string | null;
   primaryHorizonAge?: number;
   partnerHorizonAge?: number;
+  primaryLabel?: string;
+  partnerLabel?: string;
 };
 
 function birthYear(birthDate: string): number {
@@ -85,6 +86,8 @@ export function HouseholdPillar3aChart({
   partnerBirthDate,
   primaryHorizonAge = 90,
   partnerHorizonAge = 90,
+  primaryLabel = "Person 1",
+  partnerLabel = "Person 2",
 }: Props) {
   const series = useMemo(() => {
     const items = buildSeries(primary, "primary", PERSON1_COLOR);
@@ -159,6 +162,8 @@ export function HouseholdPillar3aChart({
       maxYear={maxYear}
       totalByYear={totalByYear}
       withdrawals={withdrawals}
+      primaryLabel={primaryLabel}
+      partnerLabel={partnerLabel}
     />
   );
 }
@@ -169,11 +174,15 @@ function HouseholdPillar3aChartInner({
   maxYear,
   totalByYear,
   withdrawals,
+  primaryLabel,
+  partnerLabel,
 }: {
   series: Series[];
   minYear: number;
   maxYear: number;
   totalByYear: Map<number, number>;
+  primaryLabel: string;
+  partnerLabel: string;
   withdrawals: {
     year: number;
     age: number;
@@ -186,6 +195,9 @@ function HouseholdPillar3aChartInner({
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverYear, setHoverYear] = useState<number | null>(null);
   const { hidden, toggle, isVisible } = useChartSeriesVisibility();
+
+  const labelFor = (person: "primary" | "partner") =>
+    person === "primary" ? primaryLabel : partnerLabel;
 
   const years = useMemo(() => {
     const list: number[] = [];
@@ -251,7 +263,7 @@ function HouseholdPillar3aChartInner({
           },
           ...series.map((s) => ({
             id: s.id,
-            label: `${personLabel(s.person)} · ${s.name}`,
+            label: `${labelFor(s.person)} · ${s.name}`,
             color: s.color,
           })),
         ]}
@@ -397,7 +409,7 @@ function HouseholdPillar3aChartInner({
                   className="flex justify-between gap-4 text-muted-foreground"
                 >
                   <dt style={{ color: s.color }}>
-                    {personLabel(s.person)} · {s.name}
+                    {labelFor(s.person)} · {s.name}
                     {withdrawn ? " (bezogen)" : ""}
                   </dt>
                   <dd className="font-mono tabular-nums text-foreground">
@@ -414,7 +426,7 @@ function HouseholdPillar3aChartInner({
                   className="flex justify-between gap-4 border-t border-border/60 pt-1"
                 >
                   <dt style={{ color: w.color }}>
-                    Bezug {personLabel(w.person)} · {w.accountName}
+                    Bezug {labelFor(w.person)} · {w.accountName}
                   </dt>
                   <dd className="font-mono tabular-nums text-emerald-600">
                     +{formatCHF(w.amount)}

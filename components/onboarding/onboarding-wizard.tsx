@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 
@@ -9,13 +15,20 @@ import {
   skipOnboarding,
 } from "@/app/onboarding/actions";
 import { FinancialIndependencePanel } from "@/components/master-data/financial-independence-panel";
+import { Pillar3aAccountsEditor } from "@/components/master-data/pillar3a-accounts-editor";
 import { SimplificationCallout } from "@/components/onboarding/simplification-callout";
 import {
   ChfStepperField,
   NumberStepperField,
+  PercentStepperField,
   PercentStepperInput,
 } from "@/components/shared/stepper-inputs";
-import { CHF_STEP } from "@/components/shared/numeric-steps";
+import { CHF_STEP, NUM_STEP } from "@/components/shared/numeric-steps";
+import {
+  BVG_CONVERSION_RATE,
+  BVG_MIN_INTEREST_RATE,
+} from "@/lib/engine/constants";
+import { formatRatePercent } from "@/lib/format/numbers";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -39,6 +52,7 @@ import {
   parseMasterDataFormToHousehold,
   taxSettingsFromFormData,
 } from "@/lib/master-data/parse-form-profile";
+import { parsePillar3aDraftsJson } from "@/lib/pillar3a/accounts";
 import { getCantonsSortedByName } from "@/lib/tax/canton-reference";
 import {
   resolveMunicipalityFromPostalCode,
@@ -114,7 +128,7 @@ export function OnboardingWizard({ initialState }: Props) {
         return null;
       case "partner":
         if (state.planningMode === "couple" && !state.partner.birthDate.trim()) {
-          return "Geburtsdatum Person 2 ist erforderlich.";
+          return `Geburtsdatum ${state.partner.firstName.trim() || "Person 2"} ist erforderlich.`;
         }
         return null;
       case "tax":
@@ -178,6 +192,12 @@ export function OnboardingWizard({ initialState }: Props) {
     });
   };
 
+  const primaryLabel = state.primary.firstName.trim() || "Person 1";
+  const partnerLabel = state.partner.firstName.trim() || "Person 2";
+  const displayTitle = currentStep.title
+    .replace("Person 1", primaryLabel)
+    .replace("Person 2", partnerLabel);
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6">
       <div className="space-y-2">
@@ -205,7 +225,7 @@ export function OnboardingWizard({ initialState }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle>{currentStep.title}</CardTitle>
+          <CardTitle>{displayTitle}</CardTitle>
           {currentStep.subtitle ? (
             <CardDescription>{currentStep.subtitle}</CardDescription>
           ) : null}
@@ -286,13 +306,14 @@ function renderStepContent(
             App modelliert und was nicht.
           </p>
           <ul className="list-disc space-y-1 pl-5">
-            <li>AHV, BVG, freies Vermögen und Haushaltsausgaben</li>
+            <li>AHV, BVG (inkl. Zinssatz & Umwandlungssatz) und Säule 3a</li>
+            <li>Freies Vermögen, Sparquote und Haushaltsausgaben</li>
             <li>Live-Vorschau «Finanzielle Unabhängigkeit»</li>
-            <li>Erstes Szenario zum Ausprobieren von Varianten</li>
+            <li>Erstes Szenario für Kapitalbezug, Erbschaft & Co.</li>
           </ul>
           <p className="text-xs">
-            Säule 3a, Teilpensionierung und detaillierte BVG-Overrides können
-            Sie danach unter Stammdaten ergänzen.
+            Teilpensionierung und feinere BVG-Gutschriften können Sie danach
+            unter Stammdaten ergänzen.
           </p>
         </div>
       );
@@ -346,66 +367,56 @@ function renderStepContent(
 
     case "wealth":
       return (
-        <div className="space-y-4">
-          <ChfStepperField
-            id="freeAssets"
-            label="Freies Vermögen heute"
-            value={state.primary.freeAssets}
-            onChange={(e) => updatePrimary({ freeAssets: e.target.value })}
-            step={CHF_STEP.wealth}
-            allowZero
-          />
-          <div className="grid gap-2">
-            <ChfStepperField
-              id="annualSavings"
-              label="Jährliche Sparquote ins freie Vermögen"
-              value={state.primary.annualSavingsToFreeAssets}
-              onChange={(e) =>
-                updatePrimary({ annualSavingsToFreeAssets: e.target.value })
-              }
-              step={CHF_STEP.savings}
-              allowZero
-            />
-            <p className="text-xs text-muted-foreground">
-              Direkter Zufluss — nicht Brutto minus Ausgaben.
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="freeAssetsReturn">Erwartete Rendite freies Vermögen (%)</Label>
-            <PercentStepperInput
-              id="freeAssetsReturn"
-              value={state.primary.freeAssetsInterestRate}
-              onChange={(e) =>
-                updatePrimary({ freeAssetsInterestRate: e.target.value })
-              }
-            />
-          </div>
-        </div>
+        <SavingsField
+          idPrefix="p1"
+          person={state.primary}
+          onChange={updatePrimary}
+        />
       );
 
     case "bvg":
       return (
+        <BvgDetailFields
+          idPrefix="p1"
+          person={state.primary}
+          onChange={updatePrimary}
+        />
+      );
+
+    case "pillar3a":
+      return (
         <div className="space-y-4">
-          <ChfStepperField
-            id="bvgCapital"
-            label="Aktuelles BVG-Kapital (optional)"
-            value={state.primary.bvgCurrentCapital}
-            onChange={(e) => updatePrimary({ bvgCurrentCapital: e.target.value })}
-            step={CHF_STEP.wealth}
-            allowZero
+          <Pillar3aAccountsEditor
+            accounts={[]}
+            formFieldName="pillar3aAccountsJson"
+            defaultReturnRate={percentStringToDecimal(state.pillar3aDefaultReturn)}
+            initialDrafts={parsePillar3aDraftsJson(state.primary.pillar3aAccountsJson)}
+            onSerializedChange={(json) =>
+              updatePrimary({ pillar3aAccountsJson: json })
+            }
           />
-          <p className="text-sm text-muted-foreground">
-            Zinssatz, Umwandlungssatz und Beitragssätze verwenden wir vorerst
-            mit gesetzlichen Standardwerten. Feinjustierung unter Stammdaten →
-            Person 1 → BVG.
-          </p>
+          <div className="grid gap-2 border-t pt-4">
+            <Label htmlFor="pillar3aDefaultReturn">
+              Standard-Rendite 3a (Fallback, %)
+            </Label>
+            <PercentStepperInput
+              id="pillar3aDefaultReturn"
+              value={state.pillar3aDefaultReturn}
+              onChange={(e) => update({ pillar3aDefaultReturn: e.target.value })}
+              step={NUM_STEP.percent}
+            />
+            <p className="text-xs text-muted-foreground">
+              Gilt für Konten ohne eigene Rendite-Angabe.
+            </p>
+          </div>
         </div>
       );
 
     case "planning":
       return (
         <div className="space-y-4">
-          <div className="grid gap-2">
+          <HouseholdFreeAssetsFields state={state} update={update} />
+          <div className="grid gap-2 border-t pt-4">
             <ChfStepperField
               id="retirementExpenses"
               label="Jährliche Netto-Lebenshaltung ab Pensionierung (CHF, heutige Kaufkraft)"
@@ -449,22 +460,56 @@ function renderStepContent(
 
     case "partner":
       return (
-        <div className="space-y-4">
-          <PersonFields
-            person={state.partner}
-            onChange={updatePartner}
-            salaryRequired={false}
-          />
-          <NumberStepperField
-            id="partnerOffset"
-            label="Person 2 arbeitet länger (+ Jahre nach P1-Erwerbsende)"
-            value={state.partnerEmploymentEndOffsetYears}
-            onChange={(e) =>
-              update({ partnerEmploymentEndOffsetYears: e.target.value })
-            }
-            min={0}
-            max={10}
-          />
+        <div className="space-y-8">
+          <section className="space-y-4">
+            <PersonFields
+              person={state.partner}
+              onChange={updatePartner}
+              salaryRequired={false}
+            />
+            <NumberStepperField
+              id="partnerOffset"
+              label={`${state.partner.firstName.trim() || "Person 2"} arbeitet länger (+ Jahre nach Erwerbsende ${state.primary.firstName.trim() || "Person 1"})`}
+              value={state.partnerEmploymentEndOffsetYears}
+              onChange={(e) =>
+                update({ partnerEmploymentEndOffsetYears: e.target.value })
+              }
+              min={0}
+              max={10}
+            />
+          </section>
+
+          <PartnerSection title="Sparquote">
+            <SavingsField
+              idPrefix="p2"
+              person={state.partner}
+              onChange={updatePartner}
+            />
+          </PartnerSection>
+
+          <PartnerSection title="BVG">
+            <BvgDetailFields
+              idPrefix="p2"
+              person={state.partner}
+              onChange={updatePartner}
+            />
+          </PartnerSection>
+
+          <PartnerSection title="Säule 3a">
+            <Pillar3aAccountsEditor
+              accounts={[]}
+              formFieldName="pillar3aPartnerAccountsJson"
+              defaultReturnRate={percentStringToDecimal(
+                state.pillar3aDefaultReturn,
+              )}
+              initialDrafts={parsePillar3aDraftsJson(
+                state.partner.pillar3aAccountsJson,
+              )}
+              onSerializedChange={(json) =>
+                updatePartner({ pillar3aAccountsJson: json })
+              }
+            />
+          </PartnerSection>
         </div>
       );
 
@@ -486,11 +531,6 @@ function renderStepContent(
               placeholder="Basis-Szenario"
             />
           </div>
-          <p className="text-sm text-muted-foreground">
-            Das Szenario startet ohne Overrides — identisch zu Ihren Stammdaten.
-            Unter Szenarien können Sie später Kapitalbezug, 3a-Bezug und mehr
-            anpassen.
-          </p>
         </div>
       );
 
@@ -537,6 +577,17 @@ function PersonFields({
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor="firstName">Vorname</Label>
+        <Input
+          id="firstName"
+          type="text"
+          autoComplete="off"
+          value={person.firstName}
+          onChange={(e) => onChange({ firstName: e.target.value })}
+          placeholder="Wird in Überschriften & Grafiken angezeigt"
+        />
+      </div>
       <div className="space-y-2 sm:col-span-2">
         <Label htmlFor="birthDate">Geburtsdatum *</Label>
         <Input
@@ -588,6 +639,159 @@ function PersonFields({
         min={1950}
         max={2030}
       />
+    </div>
+  );
+}
+
+function percentStringToDecimal(value: string): number | null {
+  const parsed = parseFloat(value.replace(",", ".").replace(/%/g, ""));
+  if (!Number.isFinite(parsed)) return null;
+  return parsed > 1 ? parsed / 100 : parsed;
+}
+
+function PartnerSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-4 border-t pt-6">
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function SavingsField({
+  idPrefix,
+  person,
+  onChange,
+}: {
+  idPrefix: string;
+  person: OnboardingState["primary"];
+  onChange: (patch: Partial<OnboardingState["primary"]>) => void;
+}) {
+  return (
+    <div className="grid gap-2">
+      <ChfStepperField
+        id={`${idPrefix}-annualSavings`}
+        label="Jährliche Sparquote ins gemeinsame freie Vermögen (ohne Zinsen daraus)"
+        value={person.annualSavingsToFreeAssets}
+        onChange={(e) => onChange({ annualSavingsToFreeAssets: e.target.value })}
+        step={CHF_STEP.savings}
+        allowZero
+      />
+      <p className="text-xs text-muted-foreground">
+        Direkter Zufluss dieser Person — nicht Brutto minus Ausgaben. Läuft bis
+        zur Erwerbsaufgabe. Startkapital und Rendite des freien Vermögens legen
+        Sie im Schritt «Planung» als Haushaltswert fest.
+      </p>
+    </div>
+  );
+}
+
+function HouseholdFreeAssetsFields({
+  state,
+  update,
+}: {
+  state: OnboardingState;
+  update: (patch: Partial<OnboardingState>) => void;
+}) {
+  const isCouple = state.planningMode === "couple";
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-2">
+        <ChfStepperField
+          id="householdFreeAssets"
+          label={
+            isCouple
+              ? "Freies Vermögen heute (Haushalt)"
+              : "Freies Vermögen heute"
+          }
+          value={state.freeAssets}
+          onChange={(e) => update({ freeAssets: e.target.value })}
+          step={CHF_STEP.wealth}
+          allowZero
+        />
+        {isCouple ? (
+          <p className="text-xs text-muted-foreground">
+            Gemeinsamer Topf beider Personen — die Sparquote je Person fliesst
+            hier hinein.
+          </p>
+        ) : null}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="householdFreeAssetsReturn">
+          Erwartete Rendite freies Vermögen (%)
+        </Label>
+        <PercentStepperInput
+          id="householdFreeAssetsReturn"
+          value={state.freeAssetsInterestRate}
+          onChange={(e) => update({ freeAssetsInterestRate: e.target.value })}
+          step={NUM_STEP.percent}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BvgDetailFields({
+  idPrefix,
+  person,
+  onChange,
+}: {
+  idPrefix: string;
+  person: OnboardingState["primary"];
+  onChange: (patch: Partial<OnboardingState["primary"]>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <ChfStepperField
+        id={`${idPrefix}-bvgCapital`}
+        label="Aktuelles BVG-Kapital (optional)"
+        value={person.bvgCurrentCapital}
+        onChange={(e) => onChange({ bvgCurrentCapital: e.target.value })}
+        step={CHF_STEP.wealth}
+        allowZero
+      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <PercentStepperField
+          id={`${idPrefix}-bvgInterest`}
+          label="BVG-Zinssatz (%)"
+          value={person.bvgInterestRate}
+          onChange={(e) => onChange({ bvgInterestRate: e.target.value })}
+          step={NUM_STEP.percentFine}
+          placeholder={formatRatePercent(BVG_MIN_INTEREST_RATE)}
+        />
+        <PercentStepperField
+          id={`${idPrefix}-bvgConversion`}
+          label="BVG-Umwandlungssatz (%)"
+          value={person.bvgConversionRate}
+          onChange={(e) => onChange({ bvgConversionRate: e.target.value })}
+          step={NUM_STEP.percentFine}
+          placeholder={formatRatePercent(BVG_CONVERSION_RATE)}
+        />
+      </div>
+      <div className="grid gap-2">
+        <ChfStepperField
+          id={`${idPrefix}-bvgCoordinated`}
+          label="Koordinierter Lohn (Override, optional)"
+          value={person.bvgCoordinatedSalaryOverride}
+          onChange={(e) =>
+            onChange({ bvgCoordinatedSalaryOverride: e.target.value })
+          }
+          step={CHF_STEP.small}
+          placeholder="automatisch"
+          allowZero
+        />
+        <p className="text-xs text-muted-foreground">
+          Vorschläge: Zinssatz {formatRatePercent(BVG_MIN_INTEREST_RATE)}{" "}
+          (BVG-Minimum), Umwandlungssatz {formatRatePercent(BVG_CONVERSION_RATE)}.
+          Koordinierten Lohn leer lassen für automatische Berechnung.
+        </p>
+      </div>
     </div>
   );
 }

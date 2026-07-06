@@ -67,10 +67,12 @@ export function PersonMasterFields({
   partnerData,
   pillar3aAccounts = [],
   pillar3aDefaultReturn,
+  primaryLabel = "Person 1",
   onFieldChange,
 }: {
   person: "primary" | "partner";
   profile?: {
+    first_name?: string | null;
     birth_date?: string | null;
     gender?: string | null;
     employment_start_year?: number | null;
@@ -89,6 +91,8 @@ export function PersonMasterFields({
   partnerData?: PartnerProfileData | null;
   pillar3aAccounts?: Pillar3aAccountRow[];
   pillar3aDefaultReturn?: number | null;
+  /** Anzeigename der Primärperson (für Partner-Bezüge wie «zusammen mit …»). */
+  primaryLabel?: string;
   onFieldChange?: () => void;
 }) {
   const isPartner = person === "partner";
@@ -100,7 +104,6 @@ export function PersonMasterFields({
 
   const salary = useChfField(p?.current_salary_brutto as number | null);
   const bvgCapital = useChfField(p?.bvg_current_capital as number | null, true);
-  const freeAssets = useChfField(p?.free_assets as number | null, true);
   const annualSavings = useChfField(
     p?.annual_savings_to_free_assets as number | null,
     true,
@@ -108,9 +111,6 @@ export function PersonMasterFields({
   const bvgInterest = usePercentField(p?.bvg_interest_rate as number | null);
   const bvgConversion = usePercentField(
     p?.bvg_conversion_rate as number | null,
-  );
-  const freeAssetsInterest = usePercentField(
-    p?.free_assets_interest_rate as number | null,
   );
 
   const bvgCoordinatedSalary = useChfField(
@@ -177,11 +177,9 @@ export function PersonMasterFields({
   const salaryField = bindChf(salary);
   const bvgCapitalField = bindChf(bvgCapital);
   const bvgCoordinatedSalaryField = bindChf(bvgCoordinatedSalary);
-  const freeAssetsField = bindChf(freeAssets);
   const annualSavingsField = bindChf(annualSavings);
   const bvgInterestField = bindPercent(bvgInterest);
   const bvgConversionField = bindPercent(bvgConversion);
-  const freeAssetsInterestField = bindPercent(freeAssetsInterest);
 
   return (
     <div className="grid gap-4">
@@ -190,7 +188,23 @@ export function PersonMasterFields({
         description="Persönliche Daten, Einkommen, Vermögen und Sparquote."
       >
         <div className="grid gap-4 xl:grid-cols-2">
-          <div className="grid gap-2 xl:col-span-2">
+          <div className="grid gap-2">
+            <Label htmlFor={field("firstName")}>Vorname</Label>
+            <Input
+              id={field("firstName")}
+              name={field("firstName")}
+              type="text"
+              autoComplete="off"
+              placeholder={isPartner ? "Person 2" : "Person 1"}
+              defaultValue={(p?.first_name as string) ?? ""}
+              onChange={() => onFieldChange?.()}
+            />
+            <p className="text-xs text-muted-foreground">
+              Ersetzt «{isPartner ? "Person 2" : "Person 1"}» in Überschriften
+              und Grafiken.
+            </p>
+          </div>
+          <div className="grid gap-2">
             <Label htmlFor={field("birthDate")}>Geburtsdatum</Label>
             <Input
               id={field("birthDate")}
@@ -240,7 +254,7 @@ export function PersonMasterFields({
           />
           {isPartner ? (
             <div className="grid gap-3 xl:col-span-2">
-              <Label>Arbeitsstopp relativ zu Person 1 (FI)</Label>
+              <Label>Arbeitsstopp relativ zu {primaryLabel} (FI)</Label>
               <div className="grid gap-2">
                 <label className="flex cursor-pointer items-center gap-2 text-sm">
                   <input
@@ -254,7 +268,7 @@ export function PersonMasterFields({
                     }}
                     className="h-4 w-4"
                   />
-                  Arbeitsstopp zusammen mit Person 1
+                  Arbeitsstopp zusammen mit {primaryLabel}
                 </label>
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
@@ -289,9 +303,10 @@ export function PersonMasterFields({
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Für die Haushalts-FI-Berechnung: ob Person 2 gleichzeitig mit Person 1
-                aufhört zu arbeiten oder erst X Jahre später (geclamped 18–70 J.). Das
-                geplante Pensionierungsalter oben gilt weiterhin für reguläre Szenarien.
+                Für die Haushalts-FI-Berechnung: ob diese Person gleichzeitig mit{" "}
+                {primaryLabel} aufhört zu arbeiten oder erst X Jahre später
+                (geclamped 18–70 J.). Das geplante Pensionierungsalter oben gilt
+                weiterhin für reguläre Szenarien.
               </p>
             </div>
           ) : null}
@@ -303,36 +318,18 @@ export function PersonMasterFields({
             {...salaryField}
           />
           <ChfStepperField
-            id={field("freeAssets")}
-            name={field("freeAssets")}
-            label="Freies Vermögen (aktuell)"
-            step={CHF_STEP.wealth}
-            allowZero
-            {...freeAssetsField}
-          />
-          <ChfStepperField
             id={field("annualSavingsToFreeAssets")}
             name={field("annualSavingsToFreeAssets")}
-            label="Jährliche Sparquote ins freie Vermögen"
+            label="Jährliche Sparquote ins freie Vermögen (ohne Zinsen daraus)"
             step={CHF_STEP.savings}
             allowZero
             {...annualSavingsField}
           />
-          <div className="grid gap-2">
-            <Label htmlFor={field("freeAssetsInterestRate")}>
-              Rendite freies Vermögen (%)
-            </Label>
-            <PercentStepperInput
-              id={field("freeAssetsInterestRate")}
-              name={field("freeAssetsInterestRate")}
-              value={freeAssetsInterestField.value}
-              onChange={freeAssetsInterestField.onChange}
-              step={NUM_STEP.percent}
-            />
-          </div>
           <p className="text-xs text-muted-foreground xl:col-span-2">
-            Pro Person erfasst. Die Sparquote fliesst nur bis zur Erwerbsaufgabe dieser
-            Person ins freie Vermögen (0 nach Pensionierung). 0 ist als Wert erlaubt.
+            Sparquote pro Person: fliesst bis zur Erwerbsaufgabe dieser Person in
+            das gemeinsame freie Vermögen (0 nach Pensionierung). Startkapital und
+            Rendite des freien Vermögens werden als Haushaltswert unter «Planung»
+            erfasst. 0 ist als Wert erlaubt.
           </p>
           <div className="xl:col-span-2">
             <WorkloadReductionFields
@@ -401,7 +398,7 @@ export function PersonMasterFields({
             </p>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor={field("bvgConversionRate")}>BVG UWS (%)</Label>
+            <Label htmlFor={field("bvgConversionRate")}>BVG Umwandlungssatz (%)</Label>
             <div className="flex flex-wrap items-center gap-2">
               <PercentStepperInput
                 id={field("bvgConversionRate")}
@@ -430,7 +427,7 @@ export function PersonMasterFields({
           <div className="grid gap-2 xl:col-span-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label htmlFor={field("bvgContributionRates")}>
-                BVG Gutschriften (JSON %)
+                BVG Gutschriften pro Altersperiode (JSON %)
               </Label>
               <Button
                 type="button"

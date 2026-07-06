@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,8 @@ import {
 } from "@/lib/format/numbers";
 import {
   createEmptyPillar3aAccount,
-  persistedPillar3aAccountIdOrNull,
   rowToPillar3aDraft,
+  serializePillar3aDrafts,
   suggestedPillar3aContribution,
   type Pillar3aAccountDraft,
   type Pillar3aAccountRow,
@@ -31,6 +31,10 @@ type Props = {
   defaultReturnRate: number | null | undefined;
   formFieldName?: string;
   onAccountsChange?: () => void;
+  /** Vorbefüllte Entwürfe (z. B. Onboarding-Wizard). Hat Vorrang vor `accounts`. */
+  initialDrafts?: Pillar3aAccountDraft[];
+  /** Wird bei jeder Änderung mit dem serialisierten JSON aufgerufen (controlled). */
+  onSerializedChange?: (json: string) => void;
 };
 
 export function Pillar3aAccountsEditor({
@@ -38,10 +42,13 @@ export function Pillar3aAccountsEditor({
   defaultReturnRate,
   formFieldName = "pillar3aAccountsJson",
   onAccountsChange,
+  initialDrafts,
+  onSerializedChange,
 }: Props) {
   const defaultPct = decimalToPercentDisplay(defaultReturnRate) || "3";
 
   const [items, setItems] = useState<Pillar3aAccountDraft[]>(() => {
+    if (initialDrafts) return initialDrafts;
     if (accounts.length > 0) {
       return accounts.map(rowToPillar3aDraft);
     }
@@ -53,12 +60,17 @@ export function Pillar3aAccountsEditor({
     0,
   );
 
+  const onSerializedChangeRef = useRef(onSerializedChange);
+  onSerializedChangeRef.current = onSerializedChange;
+
   useEffect(() => {
-    if (typeof document === "undefined") return;
-    const hidden = document.querySelector<HTMLInputElement>(
-      `input[name="${CSS.escape(formFieldName)}"]`,
-    );
-    hidden?.dispatchEvent(new Event("input", { bubbles: true }));
+    if (typeof document !== "undefined") {
+      const hidden = document.querySelector<HTMLInputElement>(
+        `input[name="${CSS.escape(formFieldName)}"]`,
+      );
+      hidden?.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    onSerializedChangeRef.current?.(serializePillar3aDrafts(items));
   }, [items, formFieldName]);
 
   const notifyAccountsChange = () => {
@@ -112,19 +124,7 @@ export function Pillar3aAccountsEditor({
       <input
         type="hidden"
         name={formFieldName}
-        value={JSON.stringify(
-          items.map((item, index) => ({
-            id: persistedPillar3aAccountIdOrNull(item.id),
-            name: item.name.trim() || `3a-Konto ${index + 1}`,
-            provider: item.provider.trim() || null,
-            currentValue: item.currentValue,
-            annualContribution: item.annualContribution,
-            returnRatePercent: item.returnRatePercent.trim()
-              ? parseFloat(item.returnRatePercent.replace(",", "."))
-              : null,
-            sortOrder: index,
-          })),
-        )}
+        value={serializePillar3aDrafts(items)}
       />
 
       <p className="text-sm text-muted-foreground">

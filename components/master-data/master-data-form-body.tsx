@@ -38,6 +38,7 @@ import {
 } from "@/lib/master-data/parse-form-profile";
 import { collectFormDataFromElement } from "@/lib/master-data/collect-form-data";
 import type { PlanningMode } from "@/lib/household/types";
+import { personLabel } from "@/lib/household/person-colors";
 import type { Pillar3aAccountRow } from "@/lib/pillar3a/accounts";
 
 import type { ProfileRow } from "./master-data-form";
@@ -122,10 +123,15 @@ export const MasterDataFormBody = memo(function MasterDataFormBody({
   const annualSurvivorExpenses = useChfField(profile?.annual_survivor_expenses);
   const inflationRate = usePercentField(profile?.inflation_rate);
   const pillar3aInterest = usePercentField(profile?.pillar3a_interest_rate);
+  const freeAssets = useChfField(profile?.free_assets);
+  const freeAssetsInterest = usePercentField(profile?.free_assets_interest_rate);
   const partnerData = useMemo(
     () => parsePartnerProfileData(profile?.partner_profile),
     [profile?.partner_profile],
   );
+
+  const primaryLabel = personLabel("primary", profile?.first_name);
+  const partnerLabel = personLabel("partner", partnerData?.first_name);
 
   const refreshLivePreview = useCallback(() => {
     if (!formRef.current) return;
@@ -222,6 +228,30 @@ export const MasterDataFormBody = memo(function MasterDataFormBody({
                     <option value="couple">Paar / Haushalt</option>
                   </select>
                 </div>
+                <ChfStepperField
+                  id="freeAssets"
+                  name="freeAssets"
+                  label={
+                    planningMode === "couple"
+                      ? "Freies Vermögen (Haushalt)"
+                      : "Freies Vermögen (aktuell)"
+                  }
+                  step={CHF_STEP.wealth}
+                  {...freeAssets}
+                />
+                <PercentStepperField
+                  id="freeAssetsInterestRate"
+                  name="freeAssetsInterestRate"
+                  label="Rendite freies Vermögen"
+                  placeholder="4"
+                  step={NUM_STEP.percent}
+                  {...freeAssetsInterest}
+                />
+                <p className="text-xs text-muted-foreground xl:col-span-2">
+                  {planningMode === "couple"
+                    ? "Gemeinsames freies Vermögen des Haushalts (ein Topf). Die Sparquote wird pro Person erfasst und fliesst bis zur jeweiligen Erwerbsaufgabe in diesen Topf."
+                    : `Aktuelles freies Vermögen. Die Sparquote wird bei ${primaryLabel} erfasst.`}
+                </p>
                 <NumberStepperField
                   id="planningHorizonAge"
                   name="planningHorizonAge"
@@ -309,9 +339,8 @@ export const MasterDataFormBody = memo(function MasterDataFormBody({
           },
           {
             value: "person-1",
-            label: "Person 1",
-            description:
-              "Stammdaten Person 1 — Gehalt, BVG, freies Vermögen, Säule 3a.",
+            label: primaryLabel,
+            description: `Stammdaten ${primaryLabel} — Gehalt, BVG, freies Vermögen, Säule 3a.`,
             content: (
               <PersonMasterFields
                 person="primary"
@@ -324,9 +353,8 @@ export const MasterDataFormBody = memo(function MasterDataFormBody({
           },
           {
             value: "person-2",
-            label: "Person 2",
-            description:
-              "Stammdaten Person 2 — Gehalt, BVG, freies Vermögen, Säule 3a.",
+            label: partnerLabel,
+            description: `Stammdaten ${partnerLabel} — Gehalt, BVG, freies Vermögen, Säule 3a.`,
             hidden: planningMode !== "couple",
             content: (
               <PersonMasterFields
@@ -334,6 +362,7 @@ export const MasterDataFormBody = memo(function MasterDataFormBody({
                 partnerData={partnerData}
                 pillar3aAccounts={partnerPillar3aAccounts}
                 pillar3aDefaultReturn={profile?.pillar3a_interest_rate}
+                primaryLabel={primaryLabel}
                 onFieldChange={scheduleLivePreview}
               />
             ),

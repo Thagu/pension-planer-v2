@@ -261,7 +261,7 @@ export function calculatePillar3a(input: Pillar3aInput): Pillar3aResult {
 
   const resolveWithdrawalAgeForAccount = (
     accountId: string,
-    accountAnnualContribution: number,
+    _accountAnnualContribution: number,
   ) => {
     const withdrawalYearOffset = clampPillar3aWithdrawalOffset(
       schedule[accountId] ?? 0,

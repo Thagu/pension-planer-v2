@@ -6,6 +6,7 @@ import {
   onboardingStateFromProfile,
   shouldShowOnboarding,
 } from "@/lib/onboarding/wizard-state";
+import { loadPillar3aAccounts } from "@/lib/pillar3a/load-accounts";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function OnboardingPage({
@@ -39,7 +40,19 @@ export default async function OnboardingPage({
     redirect("/");
   }
 
-  const initialState = onboardingStateFromProfile(profile);
+  const pillar3aRows = profile
+    ? await loadPillar3aAccounts(
+        supabase,
+        user.id,
+        profile.pillar3a_current_capital as number | null | undefined,
+      )
+    : [];
+  const initialState = onboardingStateFromProfile(profile, {
+    primary: pillar3aRows.filter(
+      (row) => (row.person ?? "primary") === "primary",
+    ),
+    partner: pillar3aRows.filter((row) => row.person === "partner"),
+  });
 
   return (
     <main className="min-h-screen bg-muted/30">

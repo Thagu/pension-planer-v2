@@ -15,6 +15,7 @@ import { taxSettingsFromProfile } from "@/lib/tax/profile-tax";
 
 export type ProfileRow = {
   updated_at?: string | null;
+  first_name?: string | null;
   birth_date: string | null;
   gender: string | null;
   employment_start_year: number | null;
@@ -101,6 +102,7 @@ export function profileRowToScenarioInput(
   if (!row?.birth_date || !row.current_salary_brutto) return null;
 
   return {
+    firstName: row.first_name ?? null,
     birthDate: row.birth_date,
     gender: row.gender as "male" | "female" | null,
     employmentStartYear: row.employment_start_year,

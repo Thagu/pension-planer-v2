@@ -12,12 +12,15 @@ import {
   type FinancialIndependenceResult,
 } from "@/lib/engine";
 import type { HouseholdProfileForScenario } from "@/lib/household/types";
+import { personLabel } from "@/lib/household/person-colors";
 
 export function FinancialIndependencePanel({
   household,
 }: {
   household: HouseholdProfileForScenario | null;
 }) {
+  const primaryLabel = personLabel("primary", household?.primary?.firstName);
+  const partnerLabel = personLabel("partner", household?.partner?.firstName);
   const result = useMemo((): FinancialIndependenceResult | null => {
     if (!household) return null;
     if (household.planningMode === "couple" && household.partner) {
@@ -77,6 +80,8 @@ export function FinancialIndependencePanel({
               timeline={result.timeline}
               profileRetirementAge={result.profileRetirementAge}
               planningHorizonAge={result.planningHorizonAge}
+              primaryLabel={primaryLabel}
+              partnerLabel={partnerLabel}
             />
           ) : null}
         </div>
@@ -88,7 +93,7 @@ export function FinancialIndependencePanel({
 
           <div className="grid gap-2 sm:grid-cols-2">
             <Metric
-              label={isCouple ? "FI-Alter Person 1" : "FI-Alter"}
+              label={isCouple ? `FI-Alter ${primaryLabel}` : "FI-Alter"}
               value={`${result.independenceAge} Jahre`}
               highlight
             />
@@ -103,7 +108,7 @@ export function FinancialIndependencePanel({
             <Metric
               label={
                 isCouple
-                  ? "Geplante Pension Person 1"
+                  ? `Geplante Pension ${primaryLabel}`
                   : "Geplante Pension"
               }
               value={`${result.profileRetirementAge} J.`}
@@ -116,7 +121,7 @@ export function FinancialIndependencePanel({
             <Metric
               label={
                 isCouple
-                  ? `Endvermögen P1-Horizont (${result.planningHorizonAge} J.)`
+                  ? `Endvermögen Horizont ${primaryLabel} (${result.planningHorizonAge} J.)`
                   : `Endvermögen (${result.planningHorizonAge} J.)`
               }
               value={formatCHF(result.endCapitalAtHorizon)}
@@ -133,6 +138,8 @@ export function FinancialIndependencePanel({
             profileRetirementAge={result.profileRetirementAge}
             planningHorizonAge={result.planningHorizonAge}
             independenceAge={result.independenceAge}
+            primaryLabel={primaryLabel}
+            partnerLabel={partnerLabel}
           />
         </div>
       )}

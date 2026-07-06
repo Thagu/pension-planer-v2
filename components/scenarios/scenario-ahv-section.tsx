@@ -10,7 +10,6 @@ import {
   ScenarioOverrideRow,
 } from "@/components/scenarios/scenario-profile-ui";
 import { CollapsibleCard } from "@/components/ui/collapsible-card";
-import { Label } from "@/components/ui/label";
 import { CHF_STEP, NUM_STEP } from "@/components/shared/numeric-steps";
 import {
   ChfStepperInput,
@@ -218,7 +217,7 @@ export function ScenarioAhvSection({
 
   return (
     <CollapsibleCard
-      title={`AHV (1. Säule) · ${personLabel(person)}`}
+      title={`AHV (1. Säule) · ${personLabel(person, profile?.firstName)}`}
       description="Rentenbeginn und Einkommen aus dem Profil — optional überschreibbar."
       icon={<ShieldCheck className="h-5 w-5" style={{ color: accentColor }} />}
     >

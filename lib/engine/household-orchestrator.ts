@@ -509,6 +509,25 @@ export function calculateHouseholdPension(
   const { partner: partnerOverrides, inheritance, ...primaryOverrides } =
     overrides;
 
+  // Pooling: das gemeinsame freie Vermögen liegt vollständig bei `primary`
+  // (Partner-Startkapital = 0). Eine Szenario-Rendite gilt daher für den ganzen
+  // Topf – auch für den Sparquoten-Anteil des Partners, damit `primary + partner`
+  // exakt einem echten Topf entspricht. Der Kapitalwert-Override
+  // (`currentValueOverride`) bleibt bewusst bei `primary`, sonst würde das
+  // Startkapital doppelt gezählt.
+  const partnerFreeAssetsReturnOverride =
+    primaryOverrides.freeAssets?.returnRateOverride ?? null;
+  const partnerOverridesResolved: ScenarioOverrides =
+    partnerFreeAssetsReturnOverride != null
+      ? {
+          ...(partnerOverrides ?? {}),
+          freeAssets: {
+            ...(partnerOverrides?.freeAssets ?? {}),
+            returnRateOverride: partnerFreeAssetsReturnOverride,
+          },
+        }
+      : (partnerOverrides ?? {});
+
   const sharedInheritance = normalizeInheritanceEvents(inheritance);
   const coupleMode =
     household.planningMode === "couple" && household.partner != null;
@@ -531,7 +550,7 @@ export function calculateHouseholdPension(
     partnerResult = calculateScenarioPension(
       stripHouseholdExpenses(household.partner!),
       {
-        ...(partnerOverrides ?? {}),
+        ...partnerOverridesResolved,
         inheritance: inheritanceForPerson(sharedInheritance, "partner"),
       },
     );
@@ -543,7 +562,7 @@ export function calculateHouseholdPension(
         partnerResult,
         { ...primaryOverrides, inheritance: inheritanceForPerson(sharedInheritance, "primary") },
         {
-          ...(partnerOverrides ?? {}),
+          ...partnerOverridesResolved,
           inheritance: inheritanceForPerson(sharedInheritance, "partner"),
         },
       );

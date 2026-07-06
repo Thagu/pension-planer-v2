@@ -8,6 +8,8 @@
     "db:migrate-003": "node scripts/apply-migration-003.mjs",
     "db:migrate-010": "node scripts/apply-migration-010.mjs",
     "db:migrate-014": "node scripts/apply-migration-014.mjs",
+    "db:migrate-015": "node scripts/apply-migration-015.mjs",
+    "db:migrate-016": "node scripts/apply-migration-016.mjs",
     "seed:test": "node scripts/seed-test-data.mjs",
     "test:household-cashflow": "node scripts/test-household-cashflow.mjs",
     "test": "npx tsx --test lib/engine/**/*.test.ts"

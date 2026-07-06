@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { calculateFreeAssetsPension } from "./modules/free-assets.ts";
+import { calculateFreeAssetsPension } from "./modules/free-assets";
 
 describe("free assets inheritance injection", () => {
   it("tracks Erbschaft separately from BVG and 3a markers", () => {

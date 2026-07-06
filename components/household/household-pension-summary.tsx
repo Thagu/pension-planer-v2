@@ -4,8 +4,12 @@ import { formatCHF, type HouseholdPensionResult } from "@/lib/engine";
 
 export function HouseholdPensionSummary({
   result,
+  primaryLabel = "Person 1",
+  partnerLabel = "Person 2",
 }: {
   result: HouseholdPensionResult;
+  primaryLabel?: string;
+  partnerLabel?: string;
 }) {
   const primaryMonthly = result.primary.summary.monthlyTotalAtHorizon;
   const partnerMonthly = result.partner?.summary.monthlyTotalAtHorizon ?? 0;
@@ -16,12 +20,12 @@ export function HouseholdPensionSummary({
   return (
     <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border bg-background/60 p-3">
-          <p className="text-xs text-muted-foreground">Person 1 / Mt.</p>
+          <p className="text-xs text-muted-foreground">{primaryLabel} / Mt.</p>
           <p className="text-xl font-semibold tabular-nums">{formatCHF(primaryMonthly)}</p>
         </div>
         {result.partner ? (
           <div className="rounded-lg border bg-background/60 p-3">
-            <p className="text-xs text-muted-foreground">Person 2 / Mt.</p>
+            <p className="text-xs text-muted-foreground">{partnerLabel} / Mt.</p>
             <p className="text-xl font-semibold tabular-nums">
               {formatCHF(partnerMonthly)}
             </p>

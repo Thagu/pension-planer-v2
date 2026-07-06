@@ -132,13 +132,13 @@ Master data for the primary person + household settings.
 | `retirement_age` | integer (58–70) | Default employment end / planned retirement |
 | `current_salary_brutto` | numeric | Gross annual salary at 100% workload |
 | `bvg_current_capital` | numeric | Current BVG old-age credit |
-| `free_assets` | numeric | Free (non-pillar) wealth |
+| `free_assets` | numeric | Free (non-pillar) wealth. **Household value** (one pot): in couple mode this holds the whole household's start capital; the partner's `free_assets` is `0`. |
 | `bvg_interest_rate` | numeric (decimal) | BVG interest assumption |
 | `bvg_conversion_rate` | numeric (decimal) | BVG conversion rate (UWS) for annuity |
 | `bvg_contribution_rates` | jsonb | Age-band → rate map (decimal or % stored) |
 | `bvg_coordinated_salary_override` | numeric | Optional fixed coordination deduction |
-| `free_assets_interest_rate` | numeric | Expected return on free assets |
-| `annual_savings_to_free_assets` | numeric | Annual savings into free assets while employed |
+| `free_assets_interest_rate` | numeric | Expected return on free assets. **Household value**; the partner inherits this rate (partner-stored rate is ignored). |
+| `annual_savings_to_free_assets` | numeric | Annual savings into the (shared) free assets while employed. **Stays per person** and flows into the household pot until that person's employment end. |
 | `workload_reductions` | jsonb | `[{fromAge, workloadPercent}]`, max 2 entries |
 | `planning_horizon_age` | integer (58–110) | Projection end age (e.g. 90) |
 | `annual_retirement_expenses` | numeric | Household annual expenses after retirement |
@@ -219,8 +219,8 @@ Legacy column `pillar3a_current_capital` may exist but **multi-account table is 
 - Toggle `planning_mode` to `couple`.
 - **Side-by-side layout** (`HouseholdSplitLayout`): Person 1 (primary) | Person 2 (partner).
 - Partner data stored in `partner_profile` JSON (not a separate auth user).
-- Each person has own: birth date, gender, salary, BVG, free assets, workload, savings, 3a accounts (`person` column).
-- Shared household: `annual_retirement_expenses`, **inflation rate**, tax domicile, planning horizon, 3a auto-split (applies to both).
+- Each person has own: birth date, gender, salary, BVG, workload, savings rate, 3a accounts (`person` column).
+- Shared household: **free assets (start capital + return + inheritance, one pot)**, `annual_retirement_expenses`, **inflation rate**, tax domicile, planning horizon, 3a auto-split (applies to both). Free-assets start capital and return are edited once in the "Planung" tab (master data) / "Planung" step (wizard); the per-person savings rate feeds this shared pot until each person's employment end. See datamodel §4.1.
 - **Household FI panel** uses combined orchestrator with the same live preview behavior as single mode.
 - **Partner employment offset (FI):** On Person 2 tab, user chooses whether partner stops working together with Person 1 (`employment_end_offset_years = 0`) or X years later. During FI search, partner employment end = P1 trial age + offset (clamped 18–70). Regular scenarios keep partner `retirement_age` unless overridden in the scenario form.
 

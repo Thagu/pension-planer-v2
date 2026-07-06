@@ -27,7 +27,7 @@ export function buildDefaultFederalTaxAmounts(
 
 export function buildDefaultLocalTaxAmounts(
   cantonCode: string,
-  maritalStatus: TaxMaritalStatus,
+  _maritalStatus: TaxMaritalStatus,
 ): TaxAmountsByLevel {
   const reference = getCantonTaxReference(cantonCode);
   const taxes = TAX_REFERENCE_INCOME_LEVELS.map((level) => {
