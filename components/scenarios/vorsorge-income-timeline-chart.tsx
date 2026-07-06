@@ -7,165 +7,35 @@ import {
   useChartSeriesVisibility,
 } from "@/components/charts/chart-legend";
 import {
-  calculateAge,
   formatCHF,
+  type HouseholdPensionResult,
+  type ProfileForScenario,
   type ScenarioPensionResult,
 } from "@/lib/engine";
+import {
+  buildVorsorgeIncomeTimeline,
+  type PersonIncomeBreakdown,
+  type VorsorgeIncomeYear,
+} from "@/lib/vorsorge/income-timeline";
+
+export {
+  buildVorsorgeIncomeTimeline,
+  type PersonIncomeBreakdown,
+  type VorsorgeIncomeYear,
+} from "@/lib/vorsorge/income-timeline";
 
 const WIDTH = 640;
 const HEIGHT = 280;
 const PAD = { top: 28, right: 16, bottom: 40, left: 64 };
 
-/** Gut unterscheidbare Linienfarben (nicht Primary/Schwarz). */
 const VORSORGE_P1_LINE = "hsl(210 75% 42%)";
 const VORSORGE_P2_LINE = "hsl(280 55% 50%)";
 const VORSORGE_HOUSEHOLD_LINE = "hsl(32 92% 48%)";
+const WEALTH_INTEREST_LINE = "hsl(142 55% 38%)";
 
 const AHV_COLOR = "hsl(var(--chart-5))";
 const BVG_COLOR = "hsl(var(--chart-2))";
-const FREE_ASSETS_COLOR = "hsl(190 65% 42%)";
-
-export type PersonIncomeBreakdown = {
-  ahv: number;
-  bvg: number;
-  freeAssets: number;
-  total: number;
-};
-
-export type VorsorgeIncomeYear = {
-  year: number;
-  primaryAge: number;
-  partnerAge: number | null;
-  primary: PersonIncomeBreakdown;
-  partner: PersonIncomeBreakdown | null;
-  household: PersonIncomeBreakdown;
-};
-
-function ageAtCalendarYear(birthDate: string, year: number): number {
-  return calculateAge(birthDate, `${year}-01-01`);
-}
-
-function freeAssetsIncomeAtAge(
-  result: ScenarioPensionResult,
-  age: number,
-): number {
-  const projection = result.freeAssets?.projection;
-  if (!projection) return 0;
-  const row = projection.find((p) => p.age === age);
-  if (!row || age < result.summary.employmentEndAge) return 0;
-  return row.interest + row.annualWithdrawal;
-}
-
-const NO_INCOME: PersonIncomeBreakdown = {
-  ahv: 0,
-  bvg: 0,
-  freeAssets: 0,
-  total: 0,
-};
-
-function personIncomeAtAge(
-  result: ScenarioPensionResult,
-  age: number,
-  deceasedAtAge?: number,
-): PersonIncomeBreakdown {
-  // Ab dem Tod (Planungshorizont) kein Einkommen mehr – konsistent zur Engine,
-  // die die Jahreszeile einer Person ab `age >= horizonAge` nullt.
-  if (deceasedAtAge != null && age >= deceasedAtAge) return NO_INCOME;
-
-  const ahv =
-    age >= result.ahv.pensionStartAge ? result.ahv.yearlyPension : 0;
-  const bvg =
-    age >= result.bvg.pensionStartAge ? result.bvg.yearlyPension : 0;
-  const freeAssets = freeAssetsIncomeAtAge(result, age);
-  return {
-    ahv,
-    bvg,
-    freeAssets,
-    total: ahv + bvg + freeAssets,
-  };
-}
-
-function sumHouseholdIncome(
-  primary: PersonIncomeBreakdown,
-  partner: PersonIncomeBreakdown | null,
-): PersonIncomeBreakdown {
-  return {
-    ahv: primary.ahv + (partner?.ahv ?? 0),
-    bvg: primary.bvg + (partner?.bvg ?? 0),
-    freeAssets: primary.freeAssets + (partner?.freeAssets ?? 0),
-    total: primary.total + (partner?.total ?? 0),
-  };
-}
-
-export function buildVorsorgeIncomeTimeline(
-  primary: ScenarioPensionResult,
-  primaryBirthDate: string,
-  planningHorizonAge: number,
-  partner?: ScenarioPensionResult | null,
-  partnerBirthDate?: string | null,
-  partnerPlanningHorizonAge?: number,
-): VorsorgeIncomeYear[] {
-  const currentYear = new Date().getFullYear();
-  const currentPrimaryAge = calculateAge(primaryBirthDate);
-  const primaryEndYear =
-    currentYear + Math.max(0, planningHorizonAge - currentPrimaryAge);
-
-  const hasPartner = Boolean(partner && partnerBirthDate);
-  // Nach dem Planungshorizont gilt eine Person als verstorben (analog Engine:
-  // `resolvePersonProjection` nullt ab `age >= horizonAge`). Im Einzelmodus
-  // endet die Projektion am Horizont ohne Todesfall – daher dort kein Cap.
-  const partnerHorizon = hasPartner
-    ? (partnerPlanningHorizonAge ?? planningHorizonAge)
-    : undefined;
-  const primaryDeceasedAtAge = hasPartner ? planningHorizonAge : undefined;
-
-  let endYear = primaryEndYear;
-  if (hasPartner && partnerBirthDate) {
-    const currentPartnerAge = calculateAge(partnerBirthDate);
-    endYear = Math.max(
-      endYear,
-      currentYear +
-        Math.max(0, (partnerHorizon ?? planningHorizonAge) - currentPartnerAge),
-    );
-  }
-
-  const rows: VorsorgeIncomeYear[] = [];
-  for (let year = currentYear; year <= endYear; year++) {
-    const primaryAge = ageAtCalendarYear(primaryBirthDate, year);
-    const partnerAge =
-      partner && partnerBirthDate
-        ? ageAtCalendarYear(partnerBirthDate, year)
-        : null;
-    const primaryIncome = personIncomeAtAge(
-      primary,
-      primaryAge,
-      primaryDeceasedAtAge,
-    );
-    const partnerIncome =
-      partner && partnerAge != null
-        ? personIncomeAtAge(partner, partnerAge, partnerHorizon)
-        : null;
-    const household = sumHouseholdIncome(primaryIncome, partnerIncome);
-
-    rows.push({
-      year,
-      primaryAge,
-      partnerAge,
-      primary: primaryIncome,
-      partner: partnerIncome,
-      household,
-    });
-  }
-
-  const firstWithIncome = rows.findIndex(
-    (row) =>
-      row.primary.total > 0 ||
-      (row.partner?.total ?? 0) > 0 ||
-      row.household.total > 0,
-  );
-  if (firstWithIncome < 0) return [];
-  return rows.slice(firstWithIncome);
-}
+const SALARY_COLOR = "hsl(142 55% 38%)";
 
 function formatAxisValue(tick: number): string {
   if (tick >= 1_000_000) return `${Math.round(tick / 100_000) / 10}M`;
@@ -234,15 +104,15 @@ function PersonIncomeTooltip({
             color={BVG_COLOR}
           />
         ) : null}
-        {income.freeAssets > 0 ? (
+        {income.salary > 0 ? (
           <TooltipRow
-            label="Freies Vermögen"
-            value={formatCHF(income.freeAssets)}
-            color={FREE_ASSETS_COLOR}
+            label="Lohn (Brutto × 78 % × Pensum)"
+            value={formatCHF(income.salary)}
+            color={SALARY_COLOR}
           />
         ) : null}
         <TooltipRow
-          label="Total"
+          label="Subtotal"
           value={income.total > 0 ? formatCHF(income.total) : "—"}
           color={color}
         />
@@ -260,6 +130,9 @@ type Props = {
   partnerPlanningHorizonAge?: number;
   primaryLabel?: string;
   partnerLabel?: string;
+  householdResult?: HouseholdPensionResult | null;
+  primaryProfile?: ProfileForScenario;
+  partnerProfile?: ProfileForScenario | null;
 };
 
 export function VorsorgeIncomeTimelineChart({
@@ -271,19 +144,25 @@ export function VorsorgeIncomeTimelineChart({
   partnerPlanningHorizonAge,
   primaryLabel = "Person 1",
   partnerLabel = "Person 2",
+  householdResult = null,
+  primaryProfile,
+  partnerProfile = null,
 }: Props) {
   const hasPartner = partner != null && partnerBirthDate != null;
 
   const timeline = useMemo(
     () =>
-      buildVorsorgeIncomeTimeline(
+      buildVorsorgeIncomeTimeline({
         primary,
         primaryBirthDate,
         planningHorizonAge,
         partner,
         partnerBirthDate,
         partnerPlanningHorizonAge,
-      ),
+        combinedProjection: householdResult?.combinedProjection,
+        primaryProfile: primaryProfile ?? undefined,
+        partnerProfile: partnerProfile ?? undefined,
+      }),
     [
       primary,
       primaryBirthDate,
@@ -291,14 +170,18 @@ export function VorsorgeIncomeTimelineChart({
       partner,
       partnerBirthDate,
       partnerPlanningHorizonAge,
+      householdResult?.combinedProjection,
+      primaryProfile,
+      partnerProfile,
     ],
   );
 
   if (timeline.length < 2) {
     return (
       <p className="text-xs text-muted-foreground">
-        Kein Einkommen aus Vorsorge oder freiem Vermögen in der Projektion —
-        Bezugs- bzw. Pensionierungsalter liegen ausserhalb des Planungshorizonts.
+        Kein Einkommen aus Vorsorge, Lohn oder gemeinsamem Vermögen in der
+        Projektion — Bezugs- bzw. Pensionierungsalter liegen ausserhalb des
+        Planungshorizonts.
       </p>
     );
   }
@@ -309,7 +192,6 @@ export function VorsorgeIncomeTimelineChart({
       primary={primary}
       partner={partner}
       hasPartner={hasPartner}
-      showHouseholdTotalLine={hasPartner}
       primaryLabel={primaryLabel}
       partnerLabel={partnerLabel}
     />
@@ -321,7 +203,6 @@ function VorsorgeIncomeTimelineChartInner({
   primary,
   partner,
   hasPartner,
-  showHouseholdTotalLine,
   primaryLabel,
   partnerLabel,
 }: {
@@ -329,10 +210,10 @@ function VorsorgeIncomeTimelineChartInner({
   primary: ScenarioPensionResult;
   partner: ScenarioPensionResult | null;
   hasPartner: boolean;
-  showHouseholdTotalLine: boolean;
   primaryLabel: string;
   partnerLabel: string;
 }) {
+  const showHouseholdTotalLine = true;
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const { hidden, toggle, isVisible } = useChartSeriesVisibility();
@@ -344,6 +225,7 @@ function VorsorgeIncomeTimelineChartInner({
       Math.max(
         row.primary.total,
         row.partner?.total ?? 0,
+        row.wealthInterest,
         row.household.total,
       ),
     ),
@@ -367,11 +249,10 @@ function VorsorgeIncomeTimelineChartInner({
 
   const primaryPath = pathFor((row) => row.primary.total);
   const partnerPath = hasPartner ? pathFor((row) => row.partner?.total ?? 0) : "";
+  const wealthInterestPath = pathFor((row) => row.wealthInterest);
   const householdPath = showHouseholdTotalLine
     ? pathFor((row) => row.household.total)
     : "";
-
-  const lastRow = timeline[timeline.length - 1];
 
   const handleMove = useCallback(
     (event: React.MouseEvent<SVGSVGElement>) => {
@@ -428,37 +309,47 @@ function VorsorgeIncomeTimelineChartInner({
     );
   }
 
+  const wealthInterestLabel = hasPartner
+    ? "Zinseinnahmen gemeinsames Vermögen"
+    : "Zinseinnahmen freies Vermögen";
+
+  const lineLegendItems = [
+    {
+      id: "primary",
+      label: `${primaryLabel} (AHV + BVG + Lohn)`,
+      color: VORSORGE_P1_LINE,
+    },
+    ...(hasPartner
+      ? [
+          {
+            id: "partner",
+            label: `${partnerLabel} (AHV + BVG + Lohn)`,
+            color: VORSORGE_P2_LINE,
+          },
+        ]
+      : []),
+    {
+      id: "wealthInterest",
+      label: wealthInterestLabel,
+      color: WEALTH_INTEREST_LINE,
+    },
+    {
+      id: "household",
+      label: "Haushalt total",
+      color: VORSORGE_HOUSEHOLD_LINE,
+    },
+  ];
+
   return (
     <div className="space-y-3">
-      <ChartLegend
-        hidden={hidden}
-        toggle={toggle}
-        items={[
-          {
-            id: "primary",
-            label: `${primaryLabel}: ${formatCHF(lastRow?.primary.total ?? 0)}/J.`,
-            color: VORSORGE_P1_LINE,
-          },
-          ...(hasPartner
-            ? [
-                {
-                  id: "partner",
-                  label: `${partnerLabel}: ${formatCHF(lastRow?.partner?.total ?? 0)}/J.`,
-                  color: VORSORGE_P2_LINE,
-                },
-              ]
-            : []),
-          ...(showHouseholdTotalLine
-            ? [
-                {
-                  id: "household",
-                  label: `Haushalt gesamt: ${formatCHF(lastRow?.household.total ?? 0)}/J.`,
-                  color: VORSORGE_HOUSEHOLD_LINE,
-                },
-              ]
-            : []),
-        ]}
-      />
+      <p className="text-xs text-muted-foreground">
+        Jährliches Einkommen in CHF. Personenlinien: AHV, BVG und Lohn (Brutto ×
+        78 % × Pensum) während der Erwerbsphase. Grün: Zinsen auf dem{" "}
+        {hasPartner ? "gemeinsamen" : "freien"} Vermögen. Orange: Haushalt total
+        inkl. Kapitalentnahmen. Details per Mauszeiger.
+      </p>
+
+      <ChartLegend hidden={hidden} toggle={toggle} items={lineLegendItems} />
 
       <div className="relative w-full overflow-x-auto">
         <svg
@@ -466,7 +357,7 @@ function VorsorgeIncomeTimelineChartInner({
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           className="w-full min-w-[320px]"
           role="img"
-          aria-label="Einkommen aus Vorsorge und freiem Vermögen über die Zeit"
+          aria-label="Einkommen aus Vorsorge, Lohn und Vermögen über die Zeit"
           onMouseMove={handleMove}
           onMouseLeave={() => setHoverIndex(null)}
         >
@@ -544,6 +435,16 @@ function VorsorgeIncomeTimelineChartInner({
             />
           ) : null}
 
+          {isVisible("wealthInterest") ? (
+            <path
+              d={wealthInterestPath}
+              fill="none"
+              stroke={WEALTH_INTEREST_LINE}
+              strokeWidth={2}
+              strokeOpacity={0.9}
+            />
+          ) : null}
+
           {showHouseholdTotalLine && householdPath && isVisible("household") ? (
             <path
               d={householdPath}
@@ -572,6 +473,14 @@ function VorsorgeIncomeTimelineChartInner({
                   cy={yScale(hover.partner?.total ?? 0)}
                   r={4}
                   fill={VORSORGE_P2_LINE}
+                />
+              ) : null}
+              {isVisible("wealthInterest") && hover.wealthInterest > 0 ? (
+                <circle
+                  cx={xScale(hover.primaryAge)}
+                  cy={yScale(hover.wealthInterest)}
+                  r={4}
+                  fill={WEALTH_INTEREST_LINE}
                 />
               ) : null}
               {showHouseholdTotalLine &&
@@ -626,45 +535,60 @@ function VorsorgeIncomeTimelineChartInner({
               />
             ) : null}
           </div>
-          {hasPartner ? (
-            <div className="mt-2 border-t border-border/60 pt-2">
-              <p
-                className="mb-1 text-[10px] font-medium uppercase tracking-wide"
-                style={{ color: VORSORGE_HOUSEHOLD_LINE }}
-              >
-                Haushalt gesamt
-              </p>
-              <dl className="space-y-0.5 text-muted-foreground">
-                {hover.household.ahv > 0 ? (
-                  <TooltipRow
-                    label="AHV/BVG"
-                    value={formatCHF(hover.household.ahv + hover.household.bvg)}
-                  />
-                ) : null}
-                {hover.household.freeAssets > 0 ? (
-                  <TooltipRow
-                    label="Freies Vermögen"
-                    value={formatCHF(hover.household.freeAssets)}
-                    color={FREE_ASSETS_COLOR}
-                  />
-                ) : null}
+          <div className="mt-2 border-t border-border/60 pt-2">
+            <p
+              className="mb-1 text-[10px] font-medium uppercase tracking-wide"
+              style={{ color: VORSORGE_HOUSEHOLD_LINE }}
+            >
+              Haushalt
+            </p>
+            <dl className="space-y-0.5 text-muted-foreground">
+              {hover.household.ahv > 0 ? (
                 <TooltipRow
-                  label="Total"
-                  value={formatCHF(hover.household.total)}
-                  color={VORSORGE_HOUSEHOLD_LINE}
+                  label="AHV gesamt"
+                  value={formatCHF(hover.household.ahv)}
+                  color={AHV_COLOR}
                 />
-              </dl>
-            </div>
-          ) : null}
+              ) : null}
+              {hover.household.bvg > 0 ? (
+                <TooltipRow
+                  label="BVG gesamt"
+                  value={formatCHF(hover.household.bvg)}
+                  color={BVG_COLOR}
+                />
+              ) : null}
+              {hover.household.salary > 0 ? (
+                <TooltipRow
+                  label="Lohn gesamt"
+                  value={formatCHF(hover.household.salary)}
+                  color={SALARY_COLOR}
+                />
+              ) : null}
+              {hover.wealthInterest > 0 ? (
+                <TooltipRow
+                  label={wealthInterestLabel}
+                  value={formatCHF(hover.wealthInterest)}
+                  color={WEALTH_INTEREST_LINE}
+                />
+              ) : null}
+              {hover.wealthWithdrawal > 0 ? (
+                <TooltipRow
+                  label="Kapitalentnahme"
+                  value={formatCHF(hover.wealthWithdrawal)}
+                />
+              ) : null}
+              <TooltipRow
+                label="Total"
+                value={formatCHF(hover.household.total)}
+                color={VORSORGE_HOUSEHOLD_LINE}
+              />
+            </dl>
+          </div>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Jährliches Einkommen (AHV, BVG, freies Vermögen) · {primaryLabel}:{" "}
-          {formatCHF(lastRow?.primary.total ?? 0)}/J. ·{" "}
-          {hasPartner ? (
-            <>{partnerLabel}: {formatCHF(lastRow?.partner?.total ?? 0)}/J. · </>
-          ) : null}
-          Total: {formatCHF(lastRow?.household.total ?? 0)}/J. · Details per Hover
+          Bewegen Sie die Maus über die Grafik für die Aufschlüsselung nach AHV,
+          BVG, Lohn und Vermögen.
         </p>
       )}
     </div>

@@ -52,8 +52,10 @@ export function InheritanceEventsCard({
 }: {
   events: InheritanceEventDraft[];
   onChange: (events: InheritanceEventDraft[]) => void;
+  /** Referenzperson für das Alter beim Zufluss (Primärperson / Person 1). */
   primaryLabel?: string;
 }) {
+  const ageLabel = `Alter von ${primaryLabel} bei Zufluss`;
   const update = (index: number, patch: Partial<InheritanceEventDraft>) => {
     onChange(
       events.map((event, i) => (i === index ? { ...event, ...patch } : event)),
@@ -70,9 +72,14 @@ export function InheritanceEventsCard({
 
   return (
     <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Einmalige Zuflüsse (Erbschaft, Schenkung o. ä.) fließen ins gemeinsame
+          freie Haushaltsvermögen — unabhängig davon, welche Person den Betrag
+          erhält.
+        </p>
         {events.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Keine Erbschaft geplant.
+            Keine Erbschaft oder Schenkung geplant.
           </p>
         ) : (
           events.map((event, index) => (
@@ -81,9 +88,7 @@ export function InheritanceEventsCard({
               className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[1fr_1fr_auto]"
             >
               <div className="grid gap-2">
-                <Label htmlFor={`inheritance-age-${index}`}>
-                  Alter {primaryLabel}
-                </Label>
+                <Label htmlFor={`inheritance-age-${index}`}>{ageLabel}</Label>
                 <NumberStepperInput
                   id={`inheritance-age-${index}`}
                   value={event.atAge}
@@ -92,11 +97,13 @@ export function InheritanceEventsCard({
                   min={0}
                   max={110}
                   placeholder="55"
-                  ariaLabel={`Alter ${primaryLabel}`}
+                  ariaLabel={ageLabel}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor={`inheritance-amount-${index}`}>Betrag</Label>
+                <Label htmlFor={`inheritance-amount-${index}`}>
+                  Betrag ins Haushaltsvermögen
+                </Label>
                 <ChfStepperInput
                   id={`inheritance-amount-${index}`}
                   value={event.amount}
@@ -106,7 +113,7 @@ export function InheritanceEventsCard({
                     })
                   }
                   step={CHF_STEP.inheritance}
-                  ariaLabel="Erbschaftsbetrag"
+                  ariaLabel="Erbschaftsbetrag ins Haushaltsvermögen"
                 />
               </div>
               <div className="flex items-end">
@@ -125,7 +132,7 @@ export function InheritanceEventsCard({
         )}
         <Button type="button" variant="outline" size="sm" onClick={addEvent}>
           <Plus className="mr-1 h-4 w-4" />
-          Erbschaft hinzufügen
+          Zufluss hinzufügen
         </Button>
     </div>
   );

@@ -95,15 +95,6 @@ function emptyProjection(age: number, year: number): FreeAssetsYearProjection {
   };
 }
 
-function inheritanceFromProjection(row: FreeAssetsYearProjection): number {
-  if (row.inheritanceInjection > 0) return row.inheritanceInjection;
-  const other =
-    row.capitalInjection -
-    row.bvgCapitalInjection -
-    row.pillar3aCapitalInjection;
-  return Math.max(0, other);
-}
-
 function resolvePersonProjection(
   row: FreeAssetsYearProjection | undefined,
   age: number,
@@ -116,6 +107,20 @@ function resolvePersonProjection(
   return row ?? emptyProjection(age, year);
 }
 
+function resolveTimelineAge(
+  birthDate: string,
+  year: number,
+  row: FreeAssetsYearProjection | undefined,
+  lastAge: number | null,
+): number {
+  const fromBirth = ageFromBirth(birthDate, year);
+  let age = row?.age ?? fromBirth;
+  if (lastAge != null && age <= lastAge) {
+    age = lastAge + 1;
+  }
+  return age;
+}
+
 function combineYearRows(
   primaryBirth: string,
   partnerBirth: string | null,
@@ -125,13 +130,18 @@ function combineYearRows(
   options?: {
     primaryHorizonAge?: number;
     partnerHorizonAge?: number;
+    primaryAge?: number;
+    partnerAge?: number | null;
   },
 ): CombinedWealthYearProjection {
   const primaryAge =
-    primaryRow?.age ?? ageFromBirth(primaryBirth, year);
+    options?.primaryAge ??
+    (primaryRow?.age ?? ageFromBirth(primaryBirth, year));
   const partnerAge =
-    partnerRow?.age ??
-    (partnerBirth ? ageFromBirth(partnerBirth, year) : null);
+    options?.partnerAge !== undefined
+      ? options.partnerAge
+      : partnerRow?.age ??
+        (partnerBirth ? ageFromBirth(partnerBirth, year) : null);
   const primary = resolvePersonProjection(
     primaryRow,
     primaryAge,
@@ -149,7 +159,7 @@ function combineYearRows(
       : emptyProjection(0, year);
 
   const inheritanceInjection =
-    inheritanceFromProjection(primary) + inheritanceFromProjection(partner);
+    (primary.inheritanceInjection ?? 0) + (partner.inheritanceInjection ?? 0);
 
   return {
     year,
@@ -393,17 +403,37 @@ export function mergeWealthProjections(
   }
 
   let poolCapital: number | null = null;
+  let lastPrimaryAge: number | null = null;
+  let lastPartnerAge: number | null = null;
 
   const merged = years.map((year) => {
+    const primaryRow = primaryByYear.get(year);
+    const partnerRow = partnerByYear.get(year);
+    const primaryAge = resolveTimelineAge(
+      primaryBirth,
+      year,
+      primaryRow,
+      lastPrimaryAge,
+    );
+    lastPrimaryAge = primaryAge;
+    const partnerAge = partnerBirth
+      ? resolveTimelineAge(partnerBirth, year, partnerRow, lastPartnerAge)
+      : null;
+    if (partnerAge != null) {
+      lastPartnerAge = partnerAge;
+    }
+
     const row = combineYearRows(
       primaryBirth,
       partnerBirth,
-      primaryByYear.get(year),
-      partnerByYear.get(year),
+      primaryRow,
+      partnerRow,
       year,
       {
         primaryHorizonAge: options?.primaryHorizonAge,
         partnerHorizonAge: options?.partnerHorizonAge,
+        primaryAge,
+        partnerAge,
       },
     );
 
@@ -422,7 +452,30 @@ export function mergeWealthProjections(
         options.householdCashflowContext.portfolioReturnRate,
       );
       poolCapital = adjusted.capitalEnd;
-      return adjusted;
+
+      const primaryDead =
+        options.primaryHorizonAge != null &&
+        adjusted.primaryAge >= options.primaryHorizonAge;
+      const partnerDead =
+        options.partnerHorizonAge != null &&
+        adjusted.partnerAge != null &&
+        adjusted.partnerAge >= options.partnerHorizonAge;
+
+      let primaryCapitalEnd = 0;
+      let partnerCapitalEnd = 0;
+      if (primaryDead && !partnerDead) {
+        partnerCapitalEnd = adjusted.capitalEnd;
+      } else if (!primaryDead) {
+        primaryCapitalEnd = adjusted.capitalEnd;
+      } else {
+        primaryCapitalEnd = adjusted.capitalEnd;
+      }
+
+      return {
+        ...adjusted,
+        primaryCapitalEnd,
+        partnerCapitalEnd,
+      };
     }
 
     if (
@@ -619,7 +672,7 @@ export function calculateHouseholdPension(
       ? {
           primaryHorizonAge,
           partnerHorizonAge,
-          applySurvivorTransfer: true,
+          applySurvivorTransfer: false,
           householdCashflowContext,
         }
       : { primaryHorizonAge },

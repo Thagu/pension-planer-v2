@@ -265,7 +265,7 @@ export const MasterDataFormBody = memo(function MasterDataFormBody({
                 <p className="text-xs text-muted-foreground xl:col-span-2">
                   Projektion bis beide Partner dieses Alter erreichen (im
                   Paarmodus bis der jüngere Partner den Horizont erreicht).
-                  Standard: 95 Jahre.
+                  Standard: 95 Jahre. Betrag wird mit Inflationssatz angepasst.
                 </p>
                 <ChfStepperField
                   id="annualRetirementExpenses"

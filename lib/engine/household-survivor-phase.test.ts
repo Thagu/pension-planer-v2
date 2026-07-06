@@ -84,12 +84,17 @@ describe("household survivor phase (pooled cashflow)", () => {
 
   it("stops counting deceased partner flows after planning horizon", () => {
     const result = calculateHouseholdPension(survivorHousehold);
+    const partnerHorizon = survivorHousehold.partner.planningHorizonAge ?? 90;
     const afterPrimaryDeath = result.combinedProjection.filter(
-      (row) => row.primaryAge >= 80,
+      (row) =>
+        row.primaryAge >= 80 &&
+        row.partnerAge != null &&
+        row.partnerAge < partnerHorizon,
     );
     assert.ok(afterPrimaryDeath.length > 0);
     for (const row of afterPrimaryDeath) {
       assert.equal(row.primaryCapitalEnd, 0);
+      assert.equal(row.partnerCapitalEnd, row.capitalEnd);
       assert.equal(row.primaryBvgCapitalInjection, 0);
       assert.equal(row.primaryPillar3aCapitalInjection, 0);
     }

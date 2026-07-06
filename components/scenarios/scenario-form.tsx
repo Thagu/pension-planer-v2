@@ -60,6 +60,7 @@ import {
   profileRateToPercent,
 } from "@/lib/scenarios/profile";
 import type { HouseholdProfileForScenario } from "@/lib/household/types";
+import { personLabel } from "@/lib/household/person-colors";
 
 export type ScenarioRecord = {
   id: string;
@@ -83,6 +84,8 @@ export function ScenarioForm({
   const isCouple =
     household?.planningMode === "couple" && household.partner != null;
   const partnerProfile = household?.partner ?? null;
+  const primaryLabel = personLabel("primary", profile.firstName);
+  const partnerLabel = personLabel("partner", partnerProfile?.firstName);
   const partnerProfileDefaults = useMemo(() => {
     if (!partnerProfile) return null;
     return {
@@ -830,6 +833,8 @@ export function ScenarioForm({
               effectiveRetirementAge={effectiveRetirementAge}
               planningHorizonAge={profile.planningHorizonAge ?? 95}
               profileRetirementAge={profile.retirementAge}
+              primaryLabel={primaryLabel}
+              partnerLabel={partnerLabel}
             />
           }
           previewLabel="Vermögensentwicklung"

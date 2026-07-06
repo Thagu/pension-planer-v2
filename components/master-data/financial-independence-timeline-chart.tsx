@@ -6,6 +6,7 @@ import {
   ChartLegend,
   useChartSeriesVisibility,
 } from "@/components/charts/chart-legend";
+import { usePreviewChartExpanded } from "@/components/charts/preview-chart-context";
 import {
   ChartFloatingTooltip,
   RIGHT_AXIS_STROKE_DASH,
@@ -28,7 +29,7 @@ import type { FreeAssetsYearProjection } from "@/lib/engine";
 
 const WIDTH = 640;
 const HEIGHT = 280;
-const PAD = { top: 36, right: 52, bottom: 48, left: 64 };
+const BASE_PAD = { top: 40, right: 52, bottom: 48, left: 64 };
 
 const BVG_INJECTION_COLOR = "hsl(var(--chart-2))";
 const PILLAR3A_INJECTION_COLOR = "hsl(var(--chart-4))";
@@ -36,6 +37,92 @@ const INHERITANCE_INJECTION_COLOR = "hsl(217 70% 55%)";
 const PENSION_LINE_COLOR = "hsl(var(--chart-5))";
 const EXPENSE_LINE_COLOR = "hsl(var(--chart-1))";
 const WITHDRAWAL_LINE_COLOR = "hsl(var(--chart-3))";
+
+const MILESTONE_LABEL_COLORS = {
+  primary: PERSON1_COLOR,
+  partner: PERSON2_COLOR,
+  partnerMid: "hsl(270 55% 50% / 0.8)",
+  partnerSoft: "hsl(270 55% 50% / 0.65)",
+  partnerLight: "hsl(270 55% 50% / 0.55)",
+  bvg: BVG_INJECTION_COLOR,
+  ahv: PENSION_LINE_COLOR,
+  planned: "hsl(var(--muted-foreground) / 0.7)",
+  horizon: "hsl(var(--muted-foreground) / 0.5)",
+  destructive: "hsl(var(--destructive))",
+} as const;
+
+function milestoneKey(milestone: Milestone): string {
+  return `${milestone.xAge}::${milestone.label}`;
+}
+
+type ChartTypography = {
+  axis: number;
+  unit: number;
+  milestone: number;
+  age: number;
+  partnerAge: number;
+};
+
+function chartTypography(expanded: boolean): ChartTypography {
+  return expanded
+    ? { axis: 7, unit: 6, milestone: 6, age: 7, partnerAge: 6 }
+    : { axis: 8, unit: 7, milestone: 7, age: 8, partnerAge: 7 };
+}
+
+function estimateLabelWidth(label: string, expanded: boolean): number {
+  const charWidth = expanded ? 4.2 : 4.8;
+  return Math.max(52, label.length * charWidth);
+}
+
+const LABEL_COLLISION_GAP = 6;
+
+/** Assign vertical tiers so nearby milestone labels do not overlap horizontally. */
+function assignMilestoneLabelTiers(
+  milestones: Milestone[],
+  x: (age: number) => number,
+  expanded: boolean,
+): { tiers: Map<string, number>; tierCount: number } {
+  const sorted = [...milestones].sort((a, b) => a.xAge - b.xAge);
+  const tiers: { xStart: number; xEnd: number }[][] = [];
+  const result = new Map<string, number>();
+
+  for (const milestone of sorted) {
+    const xPos = x(milestone.xAge);
+    const halfW = estimateLabelWidth(milestone.label, expanded) / 2;
+    const start = xPos - halfW;
+    const end = xPos + halfW;
+
+    let tierIndex = 0;
+    while (tierIndex < tiers.length) {
+      const overlaps = tiers[tierIndex].some(
+        (slot) =>
+          !(
+            end + LABEL_COLLISION_GAP < slot.xStart ||
+            start - LABEL_COLLISION_GAP > slot.xEnd
+          ),
+      );
+      if (!overlaps) break;
+      tierIndex += 1;
+    }
+
+    if (tierIndex === tiers.length) {
+      tiers.push([]);
+    }
+    tiers[tierIndex].push({ xStart: start, xEnd: end });
+    result.set(milestoneKey(milestone), tierIndex);
+  }
+
+  return { tiers: result, tierCount: tiers.length };
+}
+
+function buildChartPad(expanded: boolean, milestoneTierCount: number) {
+  const tierStep = expanded ? 9 : 11;
+  const extraTop = Math.max(0, milestoneTierCount) * tierStep;
+  return {
+    ...BASE_PAD,
+    top: (expanded ? 42 : BASE_PAD.top) + extraTop,
+  };
+}
 
 function formatAxisValue(tick: number): string {
   const sign = tick < 0 ? "-" : "";
@@ -78,7 +165,7 @@ type Milestone = {
   /** X-position: always Person-1 age (calendar events mapped via combinedDetail). */
   xAge: number;
   label: string;
-  colorClass: string;
+  labelColor: string;
   dash?: string;
 };
 
@@ -109,6 +196,7 @@ export function FinancialIndependenceTimelineChart({
     partnerBvgPensionStartAge,
     combinedDetail,
   } = timeline;
+  const expanded = usePreviewChartExpanded();
 
   if (projection.length < 2) {
     return (
@@ -133,7 +221,7 @@ export function FinancialIndependenceTimelineChart({
           : householdMode
             ? `Erwerbsende ${primaryLabel} (${employmentEndAge} J.)`
             : `Erwerbsende (${employmentEndAge} J.)`,
-      colorClass: "stroke-primary",
+      labelColor: MILESTONE_LABEL_COLORS.primary,
       dash: "4 3",
     },
   ];
@@ -147,7 +235,7 @@ export function FinancialIndependenceTimelineChart({
       label: householdMode
         ? `Geplant ${primaryLabel} (${profileRetirementAge} J.)`
         : `Geplant (${profileRetirementAge} J.)`,
-      colorClass: "stroke-muted-foreground/50",
+      labelColor: MILESTONE_LABEL_COLORS.planned,
       dash: "2 4",
     });
   }
@@ -158,7 +246,7 @@ export function FinancialIndependenceTimelineChart({
       label: householdMode
         ? `BVG ${primaryLabel} (${bvgPensionStartAge} J.)`
         : `BVG (${bvgPensionStartAge} J.)`,
-      colorClass: "stroke-[hsl(var(--chart-2))]",
+      labelColor: MILESTONE_LABEL_COLORS.bvg,
       dash: "3 3",
     });
   }
@@ -169,7 +257,7 @@ export function FinancialIndependenceTimelineChart({
       label: householdMode
         ? `AHV ${primaryLabel} (${ahvPensionStartAge} J.)`
         : `AHV (${ahvPensionStartAge} J.)`,
-      colorClass: "stroke-[hsl(var(--chart-5))]",
+      labelColor: MILESTONE_LABEL_COLORS.ahv,
       dash: "3 3",
     });
   }
@@ -178,7 +266,7 @@ export function FinancialIndependenceTimelineChart({
     milestones.push({
       xAge: depletionAge,
       label: `Leer (${depletionAge} J.)`,
-      colorClass: "stroke-destructive",
+      labelColor: MILESTONE_LABEL_COLORS.destructive,
       dash: "2 2",
     });
   }
@@ -193,7 +281,7 @@ export function FinancialIndependenceTimelineChart({
       label: householdMode
         ? `Horizont ${primaryLabel} (${planningHorizonAge} J.)`
         : `Horizont (${planningHorizonAge} J.)`,
-      colorClass: "stroke-muted-foreground/30",
+      labelColor: MILESTONE_LABEL_COLORS.horizon,
       dash: "2 6",
     });
   }
@@ -211,7 +299,7 @@ export function FinancialIndependenceTimelineChart({
       milestones.push({
         xAge: partnerStopPrimaryAge,
         label: `${partnerLabel} Erwerbsende (${partnerEmploymentEndAge} J.)`,
-        colorClass: "stroke-violet-500/70",
+        labelColor: MILESTONE_LABEL_COLORS.partnerMid,
         dash: "4 3",
       });
     }
@@ -228,7 +316,7 @@ export function FinancialIndependenceTimelineChart({
         milestones.push({
           xAge,
           label: `${partnerLabel} AHV (${partnerAhvPensionStartAge} J.)`,
-          colorClass: "stroke-violet-500/50",
+          labelColor: MILESTONE_LABEL_COLORS.partnerSoft,
           dash: "3 3",
         });
       }
@@ -246,12 +334,25 @@ export function FinancialIndependenceTimelineChart({
         milestones.push({
           xAge,
           label: `${partnerLabel} BVG (${partnerBvgPensionStartAge} J.)`,
-          colorClass: "stroke-violet-500/40",
+          labelColor: MILESTONE_LABEL_COLORS.partnerLight,
           dash: "3 3",
         });
       }
     }
   }
+
+  const typography = chartTypography(expanded);
+  const minAge = projection[0].age;
+  const maxAge = projection[projection.length - 1].age;
+  const innerW = WIDTH - BASE_PAD.left - BASE_PAD.right;
+  const xPreview = (age: number) =>
+    BASE_PAD.left +
+    ((age - minAge) / Math.max(maxAge - minAge, 1)) * innerW;
+
+  const { tiers: milestoneLabelTiers, tierCount: milestoneTierCount } =
+    assignMilestoneLabelTiers(milestones, xPreview, expanded);
+  const pad = buildChartPad(expanded, milestoneTierCount);
+  const labelTierStep = expanded ? 9 : 11;
 
   return (
     <FinancialIndependenceTimelineChartInner
@@ -264,6 +365,10 @@ export function FinancialIndependenceTimelineChart({
       combinedDetail={combinedDetail}
       primaryLabel={primaryLabel}
       partnerLabel={partnerLabel}
+      pad={pad}
+      typography={typography}
+      milestoneLabelTiers={milestoneLabelTiers}
+      labelTierStep={labelTierStep}
     />
   );
 }
@@ -478,6 +583,10 @@ function FinancialIndependenceTimelineChartInner({
   combinedDetail,
   primaryLabel,
   partnerLabel,
+  pad,
+  typography,
+  milestoneLabelTiers,
+  labelTierStep,
 }: {
   projection: FreeAssetsYearProjection[];
   employmentEndAge: number;
@@ -488,6 +597,10 @@ function FinancialIndependenceTimelineChartInner({
   combinedDetail?: CombinedWealthYearProjection[];
   primaryLabel: string;
   partnerLabel: string;
+  pad: { top: number; right: number; bottom: number; left: number };
+  typography: ChartTypography;
+  milestoneLabelTiers: Map<string, number>;
+  labelTierStep: number;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const capitalAxisMaxRef = useRef<number | null>(null);
@@ -495,14 +608,14 @@ function FinancialIndependenceTimelineChartInner({
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const { hidden, toggle, isVisible } = useChartSeriesVisibility();
 
-  const innerW = WIDTH - PAD.left - PAD.right;
-  const innerH = HEIGHT - PAD.top - PAD.bottom;
+  const innerW = WIDTH - pad.left - pad.right;
+  const innerH = HEIGHT - pad.top - pad.bottom;
 
   const minAge = projection[0].age;
   const maxAge = projection[projection.length - 1].age;
 
   const x = (age: number) =>
-    PAD.left + ((age - minAge) / Math.max(maxAge - minAge, 1)) * innerW;
+    pad.left + ((age - minAge) / Math.max(maxAge - minAge, 1)) * innerW;
 
   const minCapital = Math.min(0, ...projection.map((p) => p.capitalEnd));
   const dataMaxCapital = Math.max(
@@ -529,11 +642,11 @@ function FinancialIndependenceTimelineChartInner({
   );
 
   const yCapital = (v: number) =>
-    PAD.top +
+    pad.top +
     innerH -
     ((v - minCapital) / Math.max(capitalRange, 1)) * innerH;
   const yAnnualFlow = (v: number) =>
-    PAD.top + innerH - (v / maxAnnualFlow) * innerH;
+    pad.top + innerH - (v / maxAnnualFlow) * innerH;
 
   const linePathFor = (
     value: (p: FreeAssetsYearProjection) => number,
@@ -578,16 +691,16 @@ function FinancialIndependenceTimelineChartInner({
       const svgY = ((clientY - rect.top) / rect.height) * HEIGHT;
 
       if (
-        svgX < PAD.left ||
-        svgX > WIDTH - PAD.right ||
-        svgY < PAD.top ||
-        svgY > HEIGHT - PAD.bottom
+        svgX < pad.left ||
+        svgX > WIDTH - pad.right ||
+        svgY < pad.top ||
+        svgY > HEIGHT - pad.bottom
       ) {
         return null;
       }
 
       const ageAtX =
-        minAge + ((svgX - PAD.left) / innerW) * Math.max(maxAge - minAge, 1);
+        minAge + ((svgX - pad.left) / innerW) * Math.max(maxAge - minAge, 1);
 
       let nearest = projection[0];
       let minDist = Math.abs(projection[0].age - ageAtX);
@@ -600,7 +713,7 @@ function FinancialIndependenceTimelineChartInner({
       }
       return nearest;
     },
-    [innerW, maxAge, minAge, projection],
+    [innerW, maxAge, minAge, pad.bottom, pad.left, pad.right, pad.top, projection],
   );
 
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -624,12 +737,6 @@ function FinancialIndependenceTimelineChartInner({
     setHovered(null);
     setCursor(null);
   };
-
-  const milestoneLabelOffsets = new Map<number, number>();
-  const sortedMilestones = [...milestones].sort((a, b) => a.xAge - b.xAge);
-  sortedMilestones.forEach((m, i) => {
-    milestoneLabelOffsets.set(m.xAge, (i % 3) * 14);
-  });
 
   const chartSubtitle = householdMode
     ? `X-Achse: Alter ${primaryLabel} (P1); darunter ${partnerLabel} (P2) am selben Kalenderjahr. Netto-Lebenshaltung startet ab dem ersten Haushalts-Ruhestand (mit Teuerung); in der Mischphase mindert der Lohn des noch erwerbstätigen Partners die Entnahme.`
@@ -659,18 +766,19 @@ function FinancialIndependenceTimelineChartInner({
         {capitalTickValues.map((tick) => (
           <g key={`capital-${tick}`}>
             <line
-              x1={PAD.left}
+              x1={pad.left}
               y1={yCapital(tick)}
-              x2={WIDTH - PAD.right}
+              x2={WIDTH - pad.right}
               y2={yCapital(tick)}
               className="stroke-border"
               strokeWidth={1}
             />
             <text
-              x={PAD.left - 8}
-              y={yCapital(tick) + 4}
+              x={pad.left - 8}
+              y={yCapital(tick) + 3}
               textAnchor="end"
-              className="fill-muted-foreground text-[10px]"
+              className="fill-muted-foreground"
+              fontSize={typography.axis}
             >
               {formatAxisValue(tick)}
             </text>
@@ -679,9 +787,9 @@ function FinancialIndependenceTimelineChartInner({
 
         {minCapital < 0 ? (
           <line
-            x1={PAD.left}
+            x1={pad.left}
             y1={yCapital(0)}
-            x2={WIDTH - PAD.right}
+            x2={WIDTH - pad.right}
             y2={yCapital(0)}
             className="stroke-muted-foreground/60"
             strokeWidth={1}
@@ -692,10 +800,11 @@ function FinancialIndependenceTimelineChartInner({
         {flowTickValues.map((tick) => (
           <g key={`flow-${tick}`}>
             <text
-              x={WIDTH - PAD.right + 8}
-              y={yAnnualFlow(tick) + 4}
+              x={WIDTH - pad.right + 8}
+              y={yAnnualFlow(tick) + 3}
               textAnchor="start"
-              className="fill-muted-foreground text-[10px]"
+              className="fill-muted-foreground"
+              fontSize={typography.axis}
             >
               {formatAxisValue(tick)}
             </text>
@@ -703,18 +812,20 @@ function FinancialIndependenceTimelineChartInner({
         ))}
 
         <text
-          x={PAD.left - 8}
-          y={PAD.top - 18}
+          x={pad.left - 8}
+          y={pad.top - 12}
           textAnchor="end"
-          className="fill-muted-foreground text-[9px]"
+          className="fill-muted-foreground"
+          fontSize={typography.unit}
         >
           CHF
         </text>
         <text
-          x={WIDTH - PAD.right + 8}
-          y={PAD.top - 18}
+          x={WIDTH - pad.right + 8}
+          y={pad.top - 12}
           textAnchor="start"
-          className="fill-muted-foreground text-[9px]"
+          className="fill-muted-foreground"
+          fontSize={typography.unit}
         >
           CHF/J.
         </text>
@@ -723,24 +834,24 @@ function FinancialIndependenceTimelineChartInner({
           <g key={`${m.label}-${m.xAge}`}>
             <line
               x1={x(m.xAge)}
-              y1={PAD.top}
+              y1={pad.top}
               x2={x(m.xAge)}
-              y2={HEIGHT - PAD.bottom}
-              className={m.colorClass}
+              y2={HEIGHT - pad.bottom}
+              stroke={m.labelColor}
               strokeWidth={m.label.startsWith("Leer") ? 2 : 1}
               strokeDasharray={m.dash ?? "4 3"}
             />
             <text
               x={x(m.xAge)}
-              y={PAD.top - 6 - (milestoneLabelOffsets.get(m.xAge) ?? 0)}
+              y={
+                pad.top -
+                6 -
+                (milestoneLabelTiers.get(milestoneKey(m)) ?? 0) * labelTierStep
+              }
               textAnchor="middle"
-              className={`text-[9px] font-medium ${
-                m.label.startsWith("Leer")
-                  ? "fill-destructive"
-                  : m.label.startsWith("FI")
-                    ? "fill-primary"
-                    : "fill-muted-foreground"
-              }`}
+              fill={m.labelColor}
+              fontSize={typography.milestone}
+              fontWeight={500}
             >
               {m.label}
             </text>
@@ -750,9 +861,9 @@ function FinancialIndependenceTimelineChartInner({
         {hovered && (
           <line
             x1={x(hovered.age)}
-            y1={PAD.top}
+            y1={pad.top}
             x2={x(hovered.age)}
-            y2={HEIGHT - PAD.bottom}
+            y2={HEIGHT - pad.bottom}
             className="stroke-muted-foreground/50"
             strokeWidth={1}
             strokeDasharray="4 3"
@@ -863,18 +974,20 @@ function FinancialIndependenceTimelineChartInner({
             <g key={`age-${p.age}`}>
               <text
                 x={x(p.age)}
-                y={HEIGHT - (householdMode && partnerAge != null ? 20 : 8)}
+                y={HEIGHT - (householdMode && partnerAge != null ? 18 : 8)}
                 textAnchor="middle"
-                className="fill-muted-foreground text-[10px]"
+                className="fill-muted-foreground"
+                fontSize={typography.age}
               >
                 {householdMode ? `P1 ${p.age}` : `${p.age} J.`}
               </text>
               {householdMode && partnerAge != null ? (
                 <text
                   x={x(p.age)}
-                  y={HEIGHT - 6}
+                  y={HEIGHT - 5}
                   textAnchor="middle"
-                  className="fill-violet-600/80 text-[9px] dark:fill-violet-400/80"
+                  className="fill-violet-600/80 dark:fill-violet-400/80"
+                  fontSize={typography.partnerAge}
                 >
                   P2 {partnerAge}
                 </text>

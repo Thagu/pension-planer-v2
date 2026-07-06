@@ -17,6 +17,8 @@ type Props = {
   effectiveRetirementAge: number;
   planningHorizonAge: number;
   profileRetirementAge?: number;
+  primaryLabel?: string;
+  partnerLabel?: string;
 };
 
 function buildHouseholdTimeline(
@@ -68,6 +70,8 @@ export function ScenarioWealthPreview({
   effectiveRetirementAge,
   planningHorizonAge,
   profileRetirementAge,
+  primaryLabel = "Person 1",
+  partnerLabel = "Person 2",
 }: Props) {
   const householdTimeline =
     householdResult != null ? buildHouseholdTimeline(householdResult) : null;
@@ -100,6 +104,8 @@ export function ScenarioWealthPreview({
         timeline={timeline}
         profileRetirementAge={profileRetirementAge}
         planningHorizonAge={planningHorizonAge}
+        primaryLabel={primaryLabel}
+        partnerLabel={partnerLabel}
       />
     </LivePreviewCard>
   );

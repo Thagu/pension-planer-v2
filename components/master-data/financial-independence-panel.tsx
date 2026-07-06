@@ -121,7 +121,7 @@ export function FinancialIndependencePanel({
             <Metric
               label={
                 isCouple
-                  ? `Endvermögen Horizont ${primaryLabel} (${result.planningHorizonAge} J.)`
+                  ? `Endvermögen Horizont (${result.planningHorizonAge} J.)`
                   : `Endvermögen (${result.planningHorizonAge} J.)`
               }
               value={formatCHF(result.endCapitalAtHorizon)}

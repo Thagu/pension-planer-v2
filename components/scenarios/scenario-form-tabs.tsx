@@ -2,7 +2,7 @@
 
 import { SectionTabs } from "@/components/layout/section-tabs";
 import { HouseholdPillar3aChart } from "@/components/household/household-pillar3a-chart";
-import { HouseholdPensionSummary } from "@/components/household/household-pension-summary";
+import { HouseholdPensionSummary, householdPensionSummaryTitle } from "@/components/household/household-pension-summary";
 import { HouseholdSplitLayout } from "@/components/household/household-split-layout";
 import { InheritanceEventsCard } from "@/components/scenarios/inheritance-events-card";
 import { ScenarioAhvSection } from "@/components/scenarios/scenario-ahv-section";
@@ -514,7 +514,8 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
         {
           value: "inheritance",
           label: "Erbschaft",
-          description: `Einmaliger Vermögenszufluss ins freie Haushaltsvermögen. Alter bezieht sich auf ${primaryLabel}.`,
+          description:
+            "Einmaliger Vermögenszufluss ins gemeinsame freie Haushaltsvermögen.",
           content: (
             <InheritanceEventsCard
               events={inheritanceDrafts}
@@ -548,13 +549,28 @@ export function ScenarioFormTabs(props: ScenarioFormTabsProps) {
                   }
                   primaryLabel={primaryLabel}
                   partnerLabel={partnerLabel}
+                  householdResult={householdResult}
+                  primaryProfile={profile}
+                  partnerProfile={partnerProfile}
                 />
               </div>
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold">Rentenvorschau</h3>
+                <h3 className="text-sm font-semibold">
+                  {householdResult
+                    ? householdPensionSummaryTitle(householdResult)
+                    : "Rentenvorschau"}
+                </h3>
                 {householdResult ? (
                   <HouseholdPensionSummary
                     result={householdResult}
+                    primaryBirthDate={profile.birthDate}
+                    partnerBirthDate={partnerProfile!.birthDate}
+                    planningHorizonAge={profile.planningHorizonAge ?? 95}
+                    partnerPlanningHorizonAge={
+                      partnerProfile?.planningHorizonAge ?? undefined
+                    }
+                    primaryProfile={profile}
+                    partnerProfile={partnerProfile}
                     primaryLabel={primaryLabel}
                     partnerLabel={partnerLabel}
                   />

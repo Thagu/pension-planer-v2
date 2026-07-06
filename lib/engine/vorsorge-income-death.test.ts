@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildVorsorgeIncomeTimeline } from "@/components/scenarios/vorsorge-income-timeline-chart";
+import { buildVorsorgeIncomeTimeline, estimatedNetSalaryIncome } from "@/lib/vorsorge/income-timeline";
 import type { ScenarioPensionResult } from "@/lib/engine";
+import type { ProfileForScenario } from "@/lib/engine";
 
 /** Minimal-Stub eines ScenarioPensionResult (nur die vom Builder gelesenen Felder). */
 function makeResult(
@@ -27,14 +28,14 @@ describe("buildVorsorgeIncomeTimeline – Einkommen endet mit dem Tod", () => {
   const primary = makeResult(30_000, 20_000);
   const partner = makeResult(24_000, 16_000);
 
-  const timeline = buildVorsorgeIncomeTimeline(
+  const timeline = buildVorsorgeIncomeTimeline({
     primary,
     primaryBirthDate,
-    90,
+    planningHorizonAge: 90,
     partner,
     partnerBirthDate,
-    95,
-  );
+    partnerPlanningHorizonAge: 95,
+  });
 
   it("zeigt AHV/BVG für Person 1 vor dem Tod (Alter 80)", () => {
     const row = timeline.find((r) => r.primaryAge === 80);
@@ -57,13 +58,56 @@ describe("buildVorsorgeIncomeTimeline – Einkommen endet mit dem Tod", () => {
   it("Haushalts-Total enthält nach P1-Tod nur noch Person 2", () => {
     const row = timeline.find((r) => r.primaryAge >= 90 && r.partner != null);
     assert.ok(row);
-    assert.equal(row!.household.total, row!.partner?.total ?? 0);
+    assert.equal(
+      row!.household.total,
+      (row!.partner?.total ?? 0) +
+        row!.wealthInterest +
+        row!.wealthWithdrawal,
+    );
   });
 
   it("Einzelmodus: Einkommen am Horizont-Alter bleibt erhalten (kein Todes-Cap)", () => {
-    const single = buildVorsorgeIncomeTimeline(primary, primaryBirthDate, 90);
+    const single = buildVorsorgeIncomeTimeline({
+      primary,
+      primaryBirthDate,
+      planningHorizonAge: 90,
+    });
     const last = single[single.length - 1];
     assert.equal(last.primaryAge, 90);
     assert.ok(last.primary.total > 0, "Einzelperson lebt bis und mit Horizont");
+  });
+});
+
+describe("estimatedNetSalaryIncome", () => {
+  const profile = {
+    currentSalaryBrutto: 170_000,
+    workloadReductions: [],
+  } as ProfileForScenario;
+
+  it("rechnet Brutto × 78 % bei 100 % Pensum", () => {
+    assert.equal(estimatedNetSalaryIncome(profile, 50, 65), 132_600);
+  });
+
+  it("liefert 0 ab Erwerbsende", () => {
+    assert.equal(estimatedNetSalaryIncome(profile, 65, 65), 0);
+  });
+});
+
+describe("buildVorsorgeIncomeTimeline – Lohn", () => {
+  it("zeigt 132'600/J. für 170'000 Brutto im Erwerbsalter", () => {
+    const profile = {
+      currentSalaryBrutto: 170_000,
+      workloadReductions: [],
+    } as ProfileForScenario;
+    const primary = makeResult(0, 0);
+    const timeline = buildVorsorgeIncomeTimeline({
+      primary,
+      primaryBirthDate: `${currentYear - 50}-01-01`,
+      planningHorizonAge: 95,
+      primaryProfile: profile,
+    });
+    const working = timeline.find((row) => row.primary.salary > 0);
+    assert.ok(working);
+    assert.equal(working!.primary.salary, 132_600);
   });
 });

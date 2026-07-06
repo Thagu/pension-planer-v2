@@ -38,7 +38,7 @@ export type HouseholdProfileForScenario = {
 };
 
 export type InheritanceEvent = {
-  /** Alter Person 1 (Referenz) beim Zufluss */
+  /** Lebensalter beim Zufluss (Kalenderjahr in der Haushaltsprojektion) */
   atAge: number;
   amount: number;
   /** Ziel-Vermögen (Standard: gemeinsames Haushaltsvermögen) */

@@ -194,12 +194,12 @@ function CombinedWealthChartInteractive({
             ? [
                 {
                   id: "primary",
-                  label: `${primaryLabel}: ${formatCHF(endPrimary)}`,
+                  label: `${primaryLabel}`,
                   color: PRIMARY_COLOR,
                 },
                 {
                   id: "partner",
-                  label: `${partnerLabel}: ${formatCHF(endPartner)}`,
+                  label: `${partnerLabel}`,
                   color: PARTNER_COLOR,
                 },
               ]
